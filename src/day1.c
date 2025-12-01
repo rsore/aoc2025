@@ -19,7 +19,7 @@ day1_part1(const char *input, usize input_length)
         StringView dir_sv = sv_take_and_consume(&this_line, 1);
         s32 dir = sv_eq(dir_sv, SV_LIT("R")) ? 1 : -1;
         s64 scalar;
-        assert(sv_to_int64(this_line, &scalar));
+        sv_to_int64(this_line, &scalar);
         dial += 100; // Offset to make mod of negative safe
         dial += dir * scalar;
         dial %= 100;
@@ -47,7 +47,7 @@ day1_part2(const char *input, usize input_length)
         StringView dir_sv = sv_take_and_consume(&this_line, 1);
         s32 dir = sv_eq(dir_sv, SV_LIT("R")) ? 1 : -1;
         s64 scalar;
-        assert(sv_to_int64(this_line, &scalar));
+        sv_to_int64(this_line, &scalar);
 
         dial += (dir * scalar);
         while (dial >= 100 || dial < 0) {

@@ -663,34 +663,6 @@ prepare_glfw(CompilationBlocks *blocks)
 }
 
 
-#define CAP_SRC_DIR "vendor/cap/"
-#define CAP_OBJECT_DIR OBJECT_DIR"/cap"
-
-static inline bool
-prepare_cap(CompilationBlocks *blocks)
-{
-    if (!mkdir_if_not_exists(CAP_OBJECT_DIR)) return false;
-
-    CompilationBlock block = {0};
-
-    static Target cap_targets[] = {
-        { .source = CAP_SRC_DIR"/cap.c",
-          .object = CAP_OBJECT_DIR"/cap"OBJ_FILE_EXT}
-    };
-    for (size_t i = 0; i < ARRAY_LENGTH(cap_targets); ++i) {
-        da_append(&block.targets, cap_targets[i]);
-    }
-
-    ThirdPartyLicense license = {"cap", "vendor/cap/LICENSE"};
-    da_append(&third_party_licenses, license);
-
-    da_append(blocks, block);
-
-    return true;
-}
-
-
-
 #define RAYLIB_DIR "vendor/raylib-5.5/"
 #define RAYLIB_SRC_DIR RAYLIB_DIR"/src"
 #define RAYLIB_OBJECT_DIR OBJECT_DIR"/raylib"
@@ -1152,7 +1124,6 @@ generate_stuff(CompilationBlocks *blocks, Cmds *out_compile_commands)
     DO_OR_FAIL(prepare_aoc2025(blocks));
     DO_OR_FAIL(prepare_raylib(blocks));
     DO_OR_FAIL(prepare_glfw(blocks));
-    DO_OR_FAIL(prepare_cap(blocks));
     DO_OR_FAIL(prepare_sv(blocks));
     DO_OR_FAIL(prepare_clay(blocks));
 
