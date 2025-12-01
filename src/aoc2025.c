@@ -135,14 +135,16 @@ CreateLayout(void)
                   .clip = {.vertical = true, .childOffset = Clay_GetScrollOffset()}})
             {
                 for (usize i = 0; i < ARRAY_LENGTH(days); ++i) {
+                    Clay_Color background_color = (i == active_day_index) ? PRIMARY_ACCENT_COLOR : SURFACE_HIGHLIGHT_COLOR;
+                    Clay_Color text_color = (i == active_day_index) ? ACCENT_TEXT_COLOR : PRIMARY_TEXT_COLOR;
                     CLAY({.layout = {.padding = {40,40,20,20},
                                      .sizing = {.width = CLAY_SIZING_GROW()}},
-                            .backgroundColor = Clay_Hovered() ? PRIMARY_ACCENT_COLOR : SURFACE_HIGHLIGHT_COLOR})
+                          .backgroundColor = Clay_Hovered() ? SECONDARY_ACCENT_COLOR : background_color})
                     {
                         Clay_OnHover(handle_day_button_interaction, (intptr_t)i);
                         Clay_String button_text = {.chars = days[i].day_button_title, .length = (s32)strlen(days[i].day_button_title)};
                         CLAY_TEXT(button_text, CLAY_TEXT_CONFIG({.fontSize = 24,
-                                    .textColor = Clay_Hovered() ? ACCENT_TEXT_COLOR : PRIMARY_TEXT_COLOR}));
+                                    .textColor = Clay_Hovered() ? ACCENT_TEXT_COLOR : text_color}));
                     }
                 }
             }
