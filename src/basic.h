@@ -1,5 +1,5 @@
-#ifndef UTIL_H
-#define UTIL_H
+#ifndef BASIC_H
+#define BASIC_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -24,5 +24,6 @@ typedef float f32;
 #define ARRAY_LENGTH(arr) (sizeof((arr)) / sizeof(*(arr)))
 
 char *read_entire_file(const char *path);
+char *sprint(const char *fmt, ...);
 
 #endif

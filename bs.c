@@ -777,6 +777,34 @@ prepare_clay(CompilationBlocks *blocks)
 }
 
 
+#define SV_DIR "vendor/sv/"
+#define SV_OBJECT_DIR OBJECT_DIR"/sv"
+
+static inline bool
+prepare_sv(CompilationBlocks *blocks)
+{
+    if (!mkdir_if_not_exists(SV_OBJECT_DIR)) return false;
+
+    CompilationBlock block = {0};
+
+    static Target sv_targets[] = {
+        { .source = SV_DIR"/sv.c",
+          .object = SV_OBJECT_DIR"/sv"OBJ_FILE_EXT}
+    };
+    for (size_t i = 0; i < ARRAY_LENGTH(sv_targets); ++i) {
+        da_append(&block.targets, sv_targets[i]);
+    }
+
+
+    ThirdPartyLicense license = {"sv", SV_DIR"/LICENSE"};
+    da_append(&third_party_licenses, license);
+
+    da_append(blocks, block);
+
+    return true;
+}
+
+
 static inline bool
 prepare_aoc2025(CompilationBlocks *blocks)
 {
@@ -787,8 +815,8 @@ prepare_aoc2025(CompilationBlocks *blocks)
     Target targets[] = {
         { .source = SRC_DIR"/aoc2025.c",
           .object = AOC2025_OBJECT_DIR"/aoc2025"OBJ_FILE_EXT},
-        { .source = SRC_DIR"/util.c",
-          .object = AOC2025_OBJECT_DIR"/util"OBJ_FILE_EXT},
+        { .source = SRC_DIR"/basic.c",
+          .object = AOC2025_OBJECT_DIR"/basic"OBJ_FILE_EXT},
         { .source = SRC_DIR"/day1.c",
           .object = AOC2025_OBJECT_DIR"/day1"OBJ_FILE_EXT},
 #ifdef _MSC_VER
@@ -809,6 +837,7 @@ prepare_aoc2025(CompilationBlocks *blocks)
 
     da_append(&block.include_directories, RAYLIB_SRC_DIR);
     da_append(&block.include_directories, CLAY_DIR);
+    da_append(&block.include_directories, SV_DIR);
     da_append(&block.include_directories, AOC2025_GENERATED_DIR);
 
     da_append(&block.options, "/wd4244");
@@ -1124,6 +1153,7 @@ generate_stuff(CompilationBlocks *blocks, Cmds *out_compile_commands)
     DO_OR_FAIL(prepare_raylib(blocks));
     DO_OR_FAIL(prepare_glfw(blocks));
     DO_OR_FAIL(prepare_cap(blocks));
+    DO_OR_FAIL(prepare_sv(blocks));
     DO_OR_FAIL(prepare_clay(blocks));
 
     *out_compile_commands = generate_compile_commands(blocks);
