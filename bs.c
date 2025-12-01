@@ -1,0 +1,1253 @@
+#define NOB_IMPLEMENTATION
+#define NOB_STRIP_PREFIX
+#define NOBDEF static inline
+#include "vendor/nob/nob.h"
+
+#define CAP_IMPLEMENTATION
+#define CAPDEF static inline
+#include "vendor/cap/cap.h"
+
+#define SHIFT(arr, len) ((len)--, *(arr)++)
+#ifndef UNUSED
+#define UNUSED(x) (void)x
+#endif
+#define ARRAY_LENGTH(arr) (sizeof((arr)) / sizeof(*(arr)))
+
+#define DO_OR_FAIL(...)                         \
+    do {                                        \
+        if (!(__VA_ARGS__)) {                   \
+            return_val = false;                 \
+            goto done;                          \
+        }                                       \
+    } while (0)
+
+
+#define SRC_DIR        "src"
+#define DATA_DIR       "data"
+#define BUILD_DIR      "build"
+#define BIN_DIR        BUILD_DIR"/bin"
+#define OBJECT_DIR     BUILD_DIR"/obj"
+
+#define AOC2025_DISTRIBUTION_DIR          BUILD_DIR"/"AOC2025_DISTRIBUTION_DIR_NAME
+
+#define LEGAL_DIR      AOC2025_DISTRIBUTION_DIR"/legal"
+#define CACHE_DIR      BUILD_DIR"/cache"
+
+#define AOC2025_OBJECT_DIR    OBJECT_DIR"/aoc2025"
+
+#ifdef _MSC_VER
+#define AOC2025_BIN_NAME "aoc2025.exe"
+#else
+#define AOC2025_BIN_NAME "aoc2025"
+#endif
+
+#define AOC2025_BIN           BIN_DIR"/"AOC2025_BIN_NAME
+
+#ifdef _MSC_VER
+#define AOC2025_DISTRIBUTION_DIR_NAME "aoc2025_windows_x64"
+#else
+#define AOC2025_DISTRIBUTION_DIR_NAME "aoc2025_linux_x86_64"
+#endif
+#ifdef _MSC_VER
+#define AOC2025_DISTRIBUTION_ARCHIVE_NAME AOC2025_DISTRIBUTION_DIR_NAME".zip"
+#else
+#define AOC2025_DISTRIBUTION_ARCHIVE_NAME AOC2025_DISTRIBUTION_DIR_NAME".tar.gz"
+#endif
+#define AOC2025_DISTRIBUTION_HASH_FILE_NAME  AOC2025_DISTRIBUTION_ARCHIVE_NAME".sha256"
+#define AOC2025_DISTRIBUTION_ARCHIVE   BUILD_DIR"/"AOC2025_DISTRIBUTION_ARCHIVE_NAME
+#define AOC2025_DISTRIBUTION_HASH_FILE BUILD_DIR"/"AOC2025_DISTRIBUTION_HASH_FILE_NAME
+
+const char *CXX = NULL;
+const char *CC  = NULL;
+#ifdef _MSC_VER
+#define CCACHE_BIN "tools/ccache/ccache-windows-x86_64/ccache"
+#define OBJ_FILE_EXT ".obj"
+#else
+#define CCACHE_BIN "tools/ccache/ccache-linux-x86_64/ccache"
+#define OBJ_FILE_EXT ".o"
+#endif
+#define CCACHE_CACHE_DIR CACHE_DIR"/ccache"
+
+#ifdef _MSC_VER
+static const char *common_compile_options[] = {
+    "/nologo", "/c", "/EHsc", "/utf-8", "/W3"
+};
+static const char *debug_compile_options[] = {
+    "/Z7", "/Od", "/MTd",
+};
+static const char *release_compile_options[] = {
+    "/O2", "/GL", "/MT", "/Gy", "/Gw"
+};
+static const char *debug_definitions[] = {
+    "/DEBUG", "/D_CRT_SECURE_NO_WARNINGS"
+};
+static const char *release_definitions[] = {
+    "/DNDEBUG", "/D_CRT_SECURE_NO_WARNINGS"
+};
+static const char *common_link_options[] = {
+    "/nologo", "/link", "/INCREMENTAL:NO", "user32.lib", "gdi32.lib", "shell32.lib", "/SUBSYSTEM:CONSOLE", "/OPT:REF", "/OPT:ICF"
+};
+static const char *debug_link_options[] = {
+    "/DEBUG"
+};
+#else
+static const char *common_compile_options[] = {
+    "-c", "-fPIC", "-Wall", "-Wextra"
+};
+static const char *debug_compile_options[] = {
+    "-O0", "-ggdb", "-fno-omit-frame-pointer"
+};
+static const char *release_compile_options[] = {
+    "-O3", "-ffunction-sections", "-fdata-sections", "-flto", "-fvisibility=hidden"
+};
+static const char *debug_definitions[] = {
+    "-DDEBUG"
+};
+static const char *release_definitions[] = {
+    "-DNDEBUG"
+};
+static const char *debug_definitions[] = {
+    "-DAOC2025_DEBUG=1"
+};
+static const char *common_link_options[] = {
+    "-ldl", "-lpthread", "-lm", "-Wl,--gc-sections", "-Wl,--as-needed", "-Wl,-O1", "-flto=auto"
+};
+static const char *debug_link_options[] = {
+
+};
+#endif
+
+typedef enum {
+#ifdef _MSC_VER
+    COMPILER_CL,
+    COMPILER_CLANG_CL
+#else
+    COMPILER_GCC,
+    COMPILER_CLANG
+#endif
+} Compiler;
+
+static struct {
+    CapContext *ctx;
+
+    bool debug;
+    int  jobs;
+    bool run;
+    bool clean;
+    bool package;
+    bool emit_compile_commands;
+    bool emit_vscode_tasks;
+    bool asan;
+
+    Compiler compiler;
+
+    bool verbose;
+
+    bool cache;
+
+#ifndef _MSC_VER
+    bool ubsan; // ubsan is not supported on windows
+#endif
+
+    int    remainder_argc;
+    char **remainder_argv;
+} cli;
+
+static inline int
+get_cpu_count(void)
+{
+    int count;
+
+#ifdef _MSC_VER
+    SYSTEM_INFO sys_info;
+    GetSystemInfo(&sys_info);
+    count = (int)sys_info.dwNumberOfProcessors;
+#else
+    count = sysconf(_SC_NPROCESSORS_ONLN);
+#endif
+
+    if (count < 1) count = 1;
+
+    return count;
+}
+
+static inline void
+init_cli(int argc, char **argv)
+{
+    cli.ctx = cap_context_new();
+
+    cap_set_program_description(cli.ctx, "Build system for Aoc2025");
+
+    cap_capture_remainder(cli.ctx,
+                          &cli.remainder_argc, &cli.remainder_argv,
+                          "Passed to Aoc2025 binary if `--run` is specified");
+
+    cap_flag(cli.ctx, &cli.verbose)
+        ->long_name("verbose")
+        ->short_name('v')
+        ->description("Enable verbose output.")
+        ->done();
+
+    cap_flag(cli.ctx, &cli.debug)
+        ->long_name("debug")
+        ->short_name('d')
+        ->description("Build without optimizations and generate debug symbols.")
+        ->done();
+
+    cap_option_int(cli.ctx, &cli.jobs)
+        ->long_name("jobs")
+        ->short_name('j')
+        ->description("Specify max amount of concurrent processes. Higher values may yield faster builds, but use more system resources. Values of 0 or less imply 1.")
+        ->default_value(get_cpu_count())
+        ->done();
+
+    cap_flag(cli.ctx, &cli.run)
+        ->long_name("run")
+        ->short_name('r')
+        ->description("Run Aoc2025 after building.")
+        ->done();
+
+    cap_flag(cli.ctx, &cli.cache)
+        ->long_name("no-cache")
+        ->invert()
+        ->description("Do not cache build steps, or use existing cache.")
+        ->done();
+
+    cap_option_enum(cli.ctx, Compiler, &cli.compiler)
+        ->long_name("compiler")
+        ->description("Choose compiler to build with. "
+                      "Note that this option does not take a path to a compiler, "
+                      "but rather a name. Ensure it is in PATH. "
+                      #ifndef _MSC_VER
+                      "A value of 'gcc' means using gcc and g++. "
+                      "A value of 'clang' means using clang clang++."
+                      #endif
+            )
+        ->metavar("name")
+#ifdef _MSC_VER
+        ->entry(COMPILER_CL, "cl")
+        ->entry(COMPILER_CLANG_CL, "clang-cl")
+        ->default_value(COMPILER_CL)
+#else
+        ->entry(COMPILER_GCC, "gcc")
+        ->entry(COMPILER_CLANG, "clang")
+        ->default_value(COMPILER_GCC)
+#endif
+        ->done();
+
+    cap_flag(cli.ctx, &cli.package)
+        ->long_name("package")
+        ->short_name('p')
+        ->description("Package distribution after build.")
+        ->done();
+
+    cap_flag(cli.ctx, &cli.emit_compile_commands)
+        ->long_name("emit-compile-commands")
+        ->description("Emit a clangd-compatible compile_commands.json file.")
+        ->done();
+
+    cap_flag(cli.ctx, &cli.emit_vscode_tasks)
+        ->long_name("emit-vscode-tasks")
+        ->description("emit task files for building and debugging Aoc2025 in VSCode.")
+        ->done();
+
+    cap_flag(cli.ctx, &cli.asan)
+        ->long_name("asan")
+        ->description("Build and link with address sanitizer.")
+        ->done();
+
+#ifndef _MSC_VER
+    cap_flag(cli.ctx, &cli.ubsan)
+        ->long_name("ubsan")
+        ->description("Build and link with undefined behavior sanitizer.")
+        ->done();
+#endif
+
+    cap_flag(cli.ctx, &cli.clean)
+        ->long_name("clean")
+        ->short_name('c')
+        ->description("Clean cache and build artifacts.")
+        ->done();
+
+    int exit_code;
+    if (cap_parse_and_handle(cli.ctx, argc, argv, &exit_code) == CAP_EXIT) {
+        cap_context_free(cli.ctx);
+        exit(exit_code);
+    }
+
+    if (cli.verbose) {
+        NOB_NO_ECHO = false;
+    }
+
+    switch (cli.compiler) {
+#ifdef _MSC_VER
+    case COMPILER_CL: {
+        CC = "cl";
+        CXX = "cl";
+    } break;
+    case COMPILER_CLANG_CL: {
+        CC = "clang-cl";
+        CXX = "clang-cl";
+    } break;
+#else
+    case COMPILER_GCC: {
+        CC = "gcc";
+        CXX = "g++";
+    } break;
+    case COMPILER_CLANG: {
+        CC = "clang";
+        CXX = "clang++";
+    } break;
+#endif
+    }
+}
+
+static inline void
+destroy_cli(void)
+{
+    cap_context_free(cli.ctx);
+}
+
+typedef struct {
+    const char **items;
+    size_t      capacity;
+    size_t      count;
+} Strings;
+
+typedef struct {
+    const char *source;
+    const char *object;
+} Target;
+
+typedef struct {
+    Target *items;
+    size_t  capacity;
+    size_t  count;
+} Targets;
+
+typedef struct {
+    Strings  options;
+    Strings  definitions;
+    Strings  include_directories;
+    Targets  targets;
+} CompilationBlock;
+
+typedef struct {
+    CompilationBlock *items;
+    size_t           capacity;
+    size_t           count;
+} CompilationBlocks;
+
+typedef struct {
+    Cmd    *items;
+    size_t  capacity;
+    size_t  count;
+} Cmds;
+
+static inline void
+add_sanitizer_option(Cmd *cmd)
+{
+#ifdef _MSC_VER
+    if (cli.asan) {
+        cmd_append(cmd, "/fsanitize=address");
+    }
+#else
+    if (cli.asan && cli.ubsan) cmd_append(cmd, "-fsanitize=address,undefined");
+    else if (cli.asan)         cmd_append(cmd, "-fsanitize=address");
+    else if (cli.ubsan)        cmd_append(cmd, "-fsanitize=undefined");
+#endif
+}
+
+static Cmds
+generate_compile_commands(CompilationBlocks *blocks)
+{
+    Cmds compile_commands = {0};
+
+    da_foreach(CompilationBlock, block, blocks) {
+        da_foreach(Target, target, &block->targets) {
+            Cmd cmd = {0};
+
+            if (cli.cache) {
+                da_append(&cmd, CCACHE_BIN);
+            }
+
+            da_append(&cmd, CC);
+#ifdef _MSC_VER
+            da_append(&cmd, "/std:c17");
+#else
+            da_append(&cmd, "-std=c17");
+#endif
+
+            for (size_t i = 0; i < ARRAY_LENGTH(common_compile_options); ++i) {
+                da_append(&cmd, common_compile_options[i]);
+            }
+            if (cli.debug) {
+                for (size_t i = 0; i < ARRAY_LENGTH(debug_compile_options); ++i) {
+                    da_append(&cmd, debug_compile_options[i]);
+                }
+            } else {
+                for (size_t i = 0; i < ARRAY_LENGTH(release_compile_options); ++i) {
+                    da_append(&cmd, release_compile_options[i]);
+                }
+            }
+#ifdef _MSC_VER
+            if (cli.compiler == COMPILER_CLANG_CL) da_append(&cmd, "-Wno-unused-command-line-argument");
+#endif
+
+            add_sanitizer_option(&cmd);
+
+            da_foreach(const char *, option, &block->options) {
+                da_append(&cmd, *option);
+            }
+
+            if (cli.debug) {
+                for (size_t i = 0; i < ARRAY_LENGTH(debug_definitions); ++i) {
+                    da_append(&cmd, debug_definitions[i]);
+                }
+            } else {
+                for (size_t i = 0; i < ARRAY_LENGTH(release_definitions); ++i) {
+                    da_append(&cmd, release_definitions[i]);
+                }
+            }
+
+            da_foreach(const char *, definition, &block->definitions) {
+#ifdef _MSC_VER
+                da_append(&cmd, temp_sprintf("/D%s", *definition));
+#else
+                da_append(&cmd, temp_sprintf("-D%s", *definition));
+#endif
+            }
+
+            da_foreach(const char *, dir, &block->include_directories) {
+#ifdef _MSC_VER
+                da_append(&cmd, temp_sprintf("/I%s", *dir));
+#else
+                da_append(&cmd, temp_sprintf("-I%s", *dir));
+#endif
+            }
+
+#ifdef _MSC_VER
+            da_append(&cmd, temp_sprintf("/Fo%s", target->object));
+            da_append(&cmd, target->source);
+#else
+            da_append(&cmd, "-o");
+            da_append(&cmd, target->object);
+            da_append(&cmd, target->source);
+#endif
+
+            da_append(&compile_commands, cmd);
+        }
+    }
+
+    return compile_commands;
+}
+
+
+typedef struct {
+    const char *name;
+    const char *license_path;
+} ThirdPartyLicense;
+
+typedef struct {
+    ThirdPartyLicense *items;
+    size_t             capacity;
+    size_t             count;
+} ThirdPartyLicenses;
+
+static ThirdPartyLicenses third_party_licenses = {0};
+
+#define CAP_SRC_DIR "vendor/cap/"
+#define CAP_OBJECT_DIR OBJECT_DIR"/cap"
+
+static inline bool
+prepare_cap(CompilationBlocks *blocks)
+{
+    if (!mkdir_if_not_exists(CAP_OBJECT_DIR)) return false;
+
+    CompilationBlock block = {0};
+
+    static Target cap_targets[] = {
+        { .source = CAP_SRC_DIR"/cap.c",
+          .object = CAP_OBJECT_DIR"/cap"OBJ_FILE_EXT}
+    };
+    for (size_t i = 0; i < ARRAY_LENGTH(cap_targets); ++i) {
+        da_append(&block.targets, cap_targets[i]);
+    }
+
+    ThirdPartyLicense license = {"cap", "vendor/cap/LICENSE"};
+    da_append(&third_party_licenses, license);
+
+    da_append(blocks, block);
+
+    return true;
+}
+
+
+static inline bool
+prepare_aoc2025(CompilationBlocks *blocks)
+{
+    if (!mkdir_if_not_exists(AOC2025_OBJECT_DIR)) return false;
+
+    CompilationBlock block = {0};
+
+    Target targets[] = {
+        { .source = SRC_DIR"/main.c",
+          .object = AOC2025_OBJECT_DIR"/main"OBJ_FILE_EXT},
+        { .source = SRC_DIR"/day1.c",
+          .object = AOC2025_OBJECT_DIR"/day1"OBJ_FILE_EXT},
+    };
+    for (size_t i = 0; i < ARRAY_LENGTH(targets); ++i) {
+        da_append(&block.targets, targets[i]);
+    }
+
+    for (size_t i = 0; i < ARRAY_LENGTH(common_compile_options); ++i) {
+        da_append(&block.options, common_compile_options[i]);
+    }
+    if (cli.debug) {
+        for (size_t i = 0; i < ARRAY_LENGTH(debug_definitions); ++i) {
+            da_append(&block.options, debug_definitions[i]);
+        }
+    } else {
+        for (size_t i = 0; i < ARRAY_LENGTH(release_definitions); ++i) {
+            da_append(&block.options, release_definitions[i]);
+        }
+    }
+    da_append(&block.include_directories, "vendor/cap/");
+
+    da_append(blocks, block);
+
+    return true;
+}
+
+static inline bool
+build_objects(Cmds *compile_commands)
+{
+    bool return_val = true;
+
+    Procs procs = {0};
+    da_foreach(Cmd, compile_command, compile_commands) {
+        // Awkward if formatting, but whatever
+        if (
+#ifdef _MSC_VER
+        cli.compiler == COMPILER_CLANG_CL
+#else
+        cli.compiler == COMPILER_GCC || cli.compiler == COMPILER_CLANG
+#endif
+            ) {
+            size_t chk = temp_save();
+            printf("%s\n", temp_file_name(compile_command->items[compile_command->count-1]));
+            fflush(stdout);
+            temp_rewind(chk);
+        }
+
+        DO_OR_FAIL(cmd_run(compile_command, .async = &procs, .max_procs = cli.jobs));
+    }
+
+    DO_OR_FAIL(procs_flush(&procs));
+
+done:
+    da_free(procs);
+
+    return return_val;
+}
+
+
+static inline bool
+link_aoc2025(CompilationBlocks *blocks)
+{
+    bool return_val = true;
+
+    printf("\nLinking \""AOC2025_BIN"\"...\n"); fflush(stdout);
+
+    Cmd cmd = {0};
+
+    da_append(&cmd, CXX);
+
+#ifdef _MSC_VER
+    da_append(&cmd, temp_sprintf("/Fe:%s", AOC2025_BIN));
+#else
+    da_append(&cmd, "-o");
+    da_append(&cmd,  AOC2025_BIN);
+#endif
+
+    da_foreach(CompilationBlock, block, blocks) {
+        da_foreach(Target, target, &block->targets) {
+            da_append(&cmd, target->object);
+        }
+    }
+
+    for (size_t i = 0; i < ARRAY_LENGTH(common_link_options); ++i) {
+        da_append(&cmd, common_link_options[i]);
+    }
+    if (cli.debug) {
+        for (size_t i = 0; i < ARRAY_LENGTH(debug_link_options); ++i) {
+            da_append(&cmd, debug_link_options[i]);
+        }
+    }
+
+#ifndef _MSC_VER
+    // gcc/clang wants sanitizers to be specified both during object building and linking,
+    // while cl is happy just being informed during object building.
+    add_sanitizer_option(&cmd);
+#endif
+
+    DO_OR_FAIL(cmd_run(&cmd));
+done:
+    da_free(cmd);
+
+    return return_val;
+}
+
+static inline bool
+generate_compilation_database(Cmds *compile_commands)
+{
+    size_t checkpoint = temp_save();
+
+    String_Builder sb = {0};
+
+    char *cwd = (char *)get_current_dir_temp();
+    const size_t cwd_len = strlen(cwd);
+#ifdef _MSC_VER
+    for (size_t i = 0; i < cwd_len; ++i) {
+        char *c = &cwd[i];
+        if (*c == '\\') *c = '/';
+    }
+#endif
+
+    sb_append_cstr(&sb, "[\n");
+
+    for (size_t i = 0; i < compile_commands->count; ++i) {
+        Cmd compile_command = compile_commands->items[i];
+
+        sb_append_cstr(&sb, "  {\n");
+
+        sb_appendf(&sb, "    \"directory\": \"%s\",\n", cwd);
+
+        sb_append_cstr(&sb, "    \"arguments\": [");
+        for (size_t j = 0; j < compile_command.count; ++j) {
+            if (j > 0) {
+                sb_append_cstr(&sb, ", ");
+            }
+            sb_appendf(&sb, "\"%s\"", compile_command.items[j]);
+        }
+        sb_append_cstr(&sb, "],\n");
+
+        sb_appendf(&sb, "    \"file\": \"%s\"\n", compile_command.items[compile_command.count-1]);
+
+        sb_append_cstr(&sb, "  }");
+        if (i < compile_commands->count-1) {
+            sb_append_cstr(&sb, ",");
+        }
+        sb_append_cstr(&sb, " \n");
+    }
+
+    sb_append_cstr(&sb, "]\n");
+
+    bool return_val = write_entire_file("compile_commands.json", sb.items, sb.count);
+
+    sb_free(sb);
+    temp_rewind(checkpoint);
+    return return_val;
+}
+
+static inline bool
+generate_vscode_tasks(void)
+{
+    bool return_val = true;
+
+    DO_OR_FAIL(mkdir_if_not_exists(".vscode"));
+
+#ifdef _MSC_VER
+    static const char *tasks_content =
+        "{\n"
+        "  \"version\": \"2.0.0\",\n"
+        "  \"tasks\": [\n"
+        "    {\n"
+        "      \"label\": \"Build C++ project\",\n"
+        "      \"type\": \"shell\",\n"
+        "      \"command\": \"./bs.exe\",\n"
+        "      \"args\": [\n"
+        "        \"--emit-compile-commands\",\n"
+        "        \"--emit-vscode-tasks\",\n"
+        "        \"--debug\"\n"
+        "      ],\n"
+        "      \"problemMatcher\": [],\n"
+        "      \"presentation\": {\n"
+        "        \"reveal\": \"always\",\n"
+        "        \"focus\": false,\n"
+        "        \"panel\": \"dedicated\",\n"
+        "        \"showReuseMessage\": false,\n"
+        "        \"clear\": false,\n"
+        "        \"close\": false\n"
+        "      },\n"
+        "      \"runOptions\": {\n"
+        "        \"reevaluateOnRerun\": false\n"
+        "      },\n"
+        "      \"options\": {\n"
+        "        \"cwd\": \"${workspaceFolder}\"\n"
+        "      },\n"
+        "      \"group\": {\n"
+        "        \"kind\": \"build\",\n"
+        "        \"isDefault\": true\n"
+        "      },\n"
+        "      \"detail\": \"Custom C++ build command\"\n"
+        "    }\n"
+        "  ]\n"
+        "}\n";
+#else
+    static const char *tasks_content =
+        "{\n"
+        "  \"version\": \"2.0.0\",\n"
+        "  \"tasks\": [\n"
+        "    {\n"
+        "      \"label\": \"Build C++ project\",\n"
+        "      \"type\": \"shell\",\n"
+        "      \"command\": \"./bs\",\n"
+        "      \"args\": [\n"
+        "        \"--emit-compile-commands\",\n"
+        "        \"--emit-vscode-tasks\",\n"
+        "        \"--debug\"\n"
+        "      ],\n"
+        "      \"options\": {\n"
+        "        \"cwd\": \"${workspaceFolder}\"\n"
+        "      },\n"
+        "      \"group\": {\n"
+        "        \"kind\": \"build\",\n"
+        "        \"isDefault\": true\n"
+        "      },\n"
+        "      \"detail\": \"Custom C++ build command\"\n"
+        "    }\n"
+        "  ]\n"
+        "}\n";
+#endif
+
+    DO_OR_FAIL(write_entire_file(".vscode/tasks.json", tasks_content, strlen(tasks_content)));
+
+#ifdef _MSC_VER
+    static const char *launch_content =
+        "{\n"
+        "  \"version\": \"0.2.0\",\n"
+        "  \"configurations\": [\n"
+        "    {\n"
+        "      \"name\": \"Run C++ (Windows, MSVC)\",\n"
+        "      \"type\": \"cppvsdbg\",\n"
+        "      \"request\": \"launch\",\n"
+        "      \"program\": \"${workspaceFolder}/"AOC2025_BIN"\",\n"
+        "      \"args\": [],\n"
+        "      \"cwd\": \"${workspaceFolder}\",\n"
+        "      \"environment\": [],\n"
+        "      \"console\": \"integratedTerminal\"\n"
+        "    }\n"
+        "  ]\n"
+        "}\n";
+
+#else
+    static const char *launch_content =
+        "{\n"
+        "  \"version\": \"0.2.0\",\n"
+        "  \"configurations\": [\n"
+        "    {\n"
+        "      \"name\": \"Run C++ (Linux, gdb)\",\n"
+        "      \"type\": \"cppdbg\",\n"
+        "      \"request\": \"launch\",\n"
+        "      \"program\": \"${workspaceFolder}/"AOC2025_BIN"\",\n"
+        "      \"args\": [],\n"
+        "      \"cwd\": \"${workspaceFolder}\",\n"
+        "      \"environment\": [],\n"
+        "      \"externalConsole\": false,\n"
+        "      \"MIMode\": \"gdb\",\n"
+        "      \"miDebuggerPath\": \"/usr/bin/gdb\",\n"
+        "      \"setupCommands\": [\n"
+        "        { \"text\": \"-enable-pretty-printing\", \"description\": \"Enable pretty printing\", \"ignoreFailures\": true }\n"
+        "      ],\n"
+        "    }\n"
+        "  ]\n"
+        "}\n";
+#endif
+
+    DO_OR_FAIL(write_entire_file(".vscode/launch.json", launch_content, strlen(launch_content)));
+
+done:
+
+    return return_val;
+}
+
+static inline bool
+generate_stuff(CompilationBlocks *blocks, Cmds *out_compile_commands)
+{
+    bool return_val = true;
+
+    DO_OR_FAIL(mkdir_if_not_exists(BUILD_DIR));
+    DO_OR_FAIL(mkdir_if_not_exists(OBJECT_DIR));
+
+    DO_OR_FAIL(prepare_aoc2025(blocks));
+    DO_OR_FAIL(prepare_cap(blocks));
+
+    *out_compile_commands = generate_compile_commands(blocks);
+
+    if (cli.emit_compile_commands) {
+        DO_OR_FAIL(generate_compilation_database(out_compile_commands));
+    }
+
+    if (cli.emit_vscode_tasks) {
+        DO_OR_FAIL(generate_vscode_tasks());
+    }
+
+done:
+
+    return return_val;
+}
+
+static inline bool
+generate_third_party_licenses_file(void)
+{
+    String_Builder sb = {0};
+
+    bool return_val = true;
+
+    sb_append_cstr(&sb, "=====================================================\n");
+    sb_append_cstr(&sb, "LICENSES FOR ALL THIRD-PARTY MATERIAL USED IN AOC2025\n");
+    sb_append_cstr(&sb, "=====================================================\n");
+
+    da_foreach(ThirdPartyLicense, license, &third_party_licenses) {
+        sb_appendf(&sb, "\n\n==================== %s ====================\n\n", license->name);
+        DO_OR_FAIL(read_entire_file(license->license_path, &sb));
+        sb_append_cstr(&sb, "\n");
+    }
+
+    DO_OR_FAIL(write_entire_file(LEGAL_DIR"/third_party_licenses.txt", sb.items, sb.count));
+
+done:
+    sb_free(sb);
+
+    return return_val;
+}
+
+#define INTEGRITY_DIR AOC2025_DISTRIBUTION_DIR"/integrity"
+
+static inline bool
+generate_checksum_integrity_check(void)
+{
+    bool return_val = true;
+    Cmd cmd = {0};
+
+    DO_OR_FAIL(mkdir_if_not_exists(INTEGRITY_DIR));
+
+    // Generate checksum file
+    const char *cwd = get_current_dir_temp();
+    DO_OR_FAIL(set_current_dir(AOC2025_DISTRIBUTION_DIR));
+#ifdef _MSC_VER
+    cmd_append(
+        &cmd,
+        "powershell",
+        "-Command",
+        "Get-ChildItem -Recurse -File | "
+        "Where-Object { $_.Name -ne 'checksums.sha256' } | "
+        "ForEach-Object { "
+        "$h=(Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(); "
+        "$rel=$_.FullName.Substring($pwd.Path.Length+1) -replace '\\\\','/'; "
+        "Write-Output \"$h  $rel\" "
+        "}"
+        );
+#else
+    cmd_append(&cmd, "find", ".", "-type", "f", "!", "-name", "checksums.sha256", "-exec", "sha256sum", "{}", "+");
+#endif
+    bool ok = cmd_run(&cmd, .stdout_path = "checksums.sha256");
+    set_current_dir(cwd);
+    DO_OR_FAIL(ok);
+    DO_OR_FAIL(copy_file(AOC2025_DISTRIBUTION_DIR"/checksums.sha256", INTEGRITY_DIR"/checksums.sha256"));
+    delete_file(AOC2025_DISTRIBUTION_DIR"/checksums.sha256");
+
+
+    // Generate verification script
+#ifdef _MSC_VER
+
+    static const char *powershell_script_content =
+        "param(\n"
+        "    [string]$ChecksumFile = \"checksums.sha256\"\n"
+        ")\n"
+        "\n"
+        "# Script lives in: ...\\integrity\n"
+        "$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path\n"
+        "# Game root is parent of \"integrity\"\n"
+        "$rootDir   = Split-Path -Parent $scriptDir\n"
+        "\n"
+        "# Full path to checksum file\n"
+        "$checksumPath = Join-Path $scriptDir $ChecksumFile\n"
+        "\n"
+        "if (-not (Test-Path -LiteralPath $checksumPath)) {\n"
+        "    Write-Host \"Checksum file not found: $checksumPath\"\n"
+        "    exit 1\n"
+        "}\n"
+        "\n"
+        "Push-Location $rootDir\n"
+        "\n"
+        "$failed  = @()\n"
+        "$missing = @()\n"
+        "\n"
+        "Get-Content -LiteralPath $checksumPath | ForEach-Object {\n"
+        "    $line = $_.Trim()\n"
+        "    if (-not $line -or $line.StartsWith(\"#\")) { return }\n"
+        "\n"
+        "    if ($line -notmatch '^(?<h>[0-9a-fA-F]{64})\\s+(?<f>.+)$') {\n"
+        "        Write-Host \"Skipping malformed line: $line\"\n"
+        "        return\n"
+        "    }\n"
+        "\n"
+        "    $expected = $matches.h.ToLower()\n"
+        "    $file     = $matches.f\n"
+        "\n"
+        "    if (-not (Test-Path -LiteralPath $file)) {\n"
+        "        Write-Host \"${file}: MISSING\" -ForegroundColor Yellow\n"
+        "        $missing += $file\n"
+        "        return\n"
+        "    }\n"
+        "\n"
+        "    $actual = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLower()\n"
+        "\n"
+        "    if ($actual -eq $expected) {\n"
+        "        Write-Host \"${file}: OK\" -ForegroundColor Green\n"
+        "    } else {\n"
+        "        Write-Host \"${file}: FAILED\" -ForegroundColor Red\n"
+        "        $failed += $file\n"
+        "    }\n"
+        "}\n"
+        "\n"
+        "Write-Host \"\"\n"
+        "Write-Host \"--------------------------------------\"\n"
+        "Write-Host \"Integrity Check Summary\"\n"
+        "Write-Host \"--------------------------------------\"\n"
+        "Write-Host \"\"\n"
+        "\n"
+        "if ($missing.Count -eq 0 -and $failed.Count -eq 0) {\n"
+        "    Write-Host \"All files are correct. Game installation appears healthy!\" -ForegroundColor Green\n"
+        "    Pop-Location\n"
+        "    exit 0\n"
+        "}\n"
+        "\n"
+        "if ($missing.Count -gt 0) {\n"
+        "    Write-Host \"Missing files:\"\n"
+        "    $missing | ForEach-Object { Write-Host \"  $_\" }\n"
+        "    Write-Host \"\"\n"
+        "}\n"
+        "\n"
+        "if ($failed.Count -gt 0) {\n"
+        "    Write-Host \"Files with invalid checksum:\"\n"
+        "    $failed | ForEach-Object { Write-Host \"  $_\" }\n"
+        "    Write-Host \"\"\n"
+        "}\n"
+        "\n"
+        "Write-Host \"    Game installation appears CORRUPTED.\" -ForegroundColor Red\n"
+        "Write-Host \"    Please re-verify your installation or reinstall the game.\" -ForegroundColor Red\n"
+        "\n"
+        "Pop-Location\n"
+        "exit 1\n";
+    DO_OR_FAIL(write_entire_file(INTEGRITY_DIR"/impl_.ps1", powershell_script_content, strlen(powershell_script_content)));
+
+    const char *cmd_script_content =
+        "@echo off\n"
+        "powershell -ExecutionPolicy Bypass -NoLogo -NoProfile -File \"%~dp0impl_.ps1\" %*\n"
+        "pause\n";
+
+    DO_OR_FAIL(write_entire_file(INTEGRITY_DIR"/verify_integrity.cmd", cmd_script_content, strlen(cmd_script_content)));
+
+    #else
+
+    const char *bash_script_content =
+        "#!/usr/bin/env bash\n"
+        "\n"
+        "# Directory this script lives in (integrity/)\n"
+        "SCRIPT_DIR=\"$(cd \"$(dirname \"$0\")\" && pwd)\"\n"
+        "\n"
+        "# Parent directory (game root)\n"
+        "ROOT_DIR=\"$(dirname \"$SCRIPT_DIR\")\"\n"
+        "\n"
+        "# Checksum file (inside integrity/)\n"
+        "CHECKSUM_FILE=\"$SCRIPT_DIR/checksums.sha256\"\n"
+        "\n"
+        "if [[ ! -f \"$CHECKSUM_FILE\" ]]; then\n"
+        "    echo \"Checksum file not found: $CHECKSUM_FILE\"\n"
+        "    exit 1\n"
+        "fi\n"
+        "\n"
+        "cd \"$ROOT_DIR\" || exit 1\n"
+        "\n"
+        "echo \"Verifying files...\"\n"
+        "echo\n"
+        "\n"
+        "# Run verification and capture all output\n"
+        "OUTPUT=\"$(sha256sum -c \"$CHECKSUM_FILE\" 2>&1)\"\n"
+        "STATUS=$?\n"
+        "\n"
+        "echo \"$OUTPUT\"\n"
+        "echo\n"
+        "\n"
+        "echo \"--------------------------------------\"\n"
+        "echo \"Integrity Check Summary\"\n"
+        "echo \"--------------------------------------\"\n"
+        "echo\n"
+        "\n"
+        "# Lines like:\n"
+        "# ./path/to/file: FAILED\n"
+        "# ./path/to/file: FAILED open or read\n"
+        "FAILED_LINES=$(echo \"$OUTPUT\" | grep -E ': FAILED( open or read)?$' || true)\n"
+        "\n"
+        "# If sha256sum returned success and we have no FAILED lines, we're good\n"
+        "if [[ $STATUS -eq 0 && -z \"$FAILED_LINES\" ]]; then\n"
+        "    echo \"All files are correct. Game installation appears healthy!\"\n"
+        "    exit 0\n"
+        "fi\n"
+        "\n"
+        "echo \"The following files are corrupted or missing:\"\n"
+        "echo \"$FAILED_LINES\" | sed 's/^/  /'\n"
+        "echo\n"
+        "echo \"    Game installation appears CORRUPTED.\"\n"
+        "echo \"    Please re-verify the installation or reinstall the game.\"\n"
+        "\n"
+        "exit 1\n";
+    DO_OR_FAIL(write_entire_file(INTEGRITY_DIR"/verify_integrity.sh", bash_script_content, strlen(bash_script_content)));
+
+    cmd_append(&cmd, "chmod", "+755", INTEGRITY_DIR"/verify_integrity.sh");
+    DO_OR_FAIL(cmd_run(&cmd));
+    #endif
+
+
+    // Generate verification guide
+    const char *verification_guide_content =
+        "If you suspect the program or data may have been corrupted, you may run the "
+#ifdef _MSC_VER
+        "`verify_integrity.cmd` "
+#else
+        "`verify_integrity.sh` "
+#endif
+        "script in this directory to check the integrity of all data.\n";
+    DO_OR_FAIL(write_entire_file(INTEGRITY_DIR"/README.txt", verification_guide_content, strlen(verification_guide_content)));
+
+done:
+
+    cmd_free(cmd);
+    return return_val;
+}
+
+static inline bool
+package_distribution(void)
+{
+    printf("Packaging distribution...\n");
+    fflush(stdout);
+    Cmd cmd = {0};
+    int return_val = true;
+
+
+    // Make and copy everything into distribution directory
+    if (file_exists(AOC2025_DISTRIBUTION_DIR)) DO_OR_FAIL(nob_delete_tree(AOC2025_DISTRIBUTION_DIR));
+    DO_OR_FAIL(mkdir_if_not_exists(AOC2025_DISTRIBUTION_DIR));
+    DO_OR_FAIL(copy_directory_recursively(DATA_DIR, AOC2025_DISTRIBUTION_DIR"/data"));
+    DO_OR_FAIL(copy_file(AOC2025_BIN, AOC2025_DISTRIBUTION_DIR"/"AOC2025_BIN_NAME));
+#ifndef _MSC_VER
+    cmd_append(&cmd, "strip", "-s", AOC2025_DISTRIBUTION_DIR"/"AOC2025_BIN_NAME);
+    DO_OR_FAIL(cmd_run_sync_and_reset(&cmd));
+#endif
+
+    if (file_exists(LEGAL_DIR)) DO_OR_FAIL(delete_tree(LEGAL_DIR));
+    DO_OR_FAIL(mkdir_if_not_exists(LEGAL_DIR));
+    DO_OR_FAIL(copy_file("LICENSE", LEGAL_DIR"/LICENSE.txt"));
+    // Generate things
+    DO_OR_FAIL(generate_third_party_licenses_file());
+    DO_OR_FAIL(generate_checksum_integrity_check());
+
+    // Archive
+    if (file_exists(AOC2025_DISTRIBUTION_ARCHIVE)) DO_OR_FAIL(delete_file(AOC2025_DISTRIBUTION_ARCHIVE));
+#ifdef _MSC_VER
+    cmd_append(&cmd, "powershell", "Compress-Archive", AOC2025_DISTRIBUTION_DIR"/*", AOC2025_DISTRIBUTION_ARCHIVE);
+#else
+    cmd_append(&cmd, "tar", "-czf", AOC2025_DISTRIBUTION_ARCHIVE, "-C", BUILD_DIR, AOC2025_DISTRIBUTION_DIR_NAME);
+#endif
+    DO_OR_FAIL(cmd_run_sync_and_reset(&cmd));
+
+
+    // Make checksum of distribution archive
+    {
+        const char *cwd = get_current_dir_temp();
+        DO_OR_FAIL(set_current_dir(BUILD_DIR));
+        if (file_exists(AOC2025_DISTRIBUTION_HASH_FILE_NAME)) DO_OR_FAIL(delete_file(AOC2025_DISTRIBUTION_HASH_FILE_NAME));
+#ifdef _MSC_VER
+        cmd_append(&cmd, "powershell", "-Command", "$h=(Get-FileHash '"AOC2025_DISTRIBUTION_ARCHIVE_NAME"' -Algorithm SHA256).Hash.ToLower(); Write-Output \"$h  "AOC2025_DISTRIBUTION_ARCHIVE_NAME"\"");
+#else
+        cmd_append(&cmd, "sha256sum", AOC2025_DISTRIBUTION_ARCHIVE_NAME);
+#endif
+        bool ok = cmd_run(&cmd, .stdout_path = AOC2025_DISTRIBUTION_HASH_FILE_NAME);
+        set_current_dir(cwd);
+        if (!ok) {
+            return_val = false;
+            goto done;
+        }
+    }
+
+done:
+    da_free(cmd);
+
+    return return_val;
+}
+
+int
+main(int argc, char **argv)
+{
+    NOB_GO_REBUILD_URSELF(argc, argv);
+
+    init_cli(argc, argv);
+
+    Cmd cmd = {0};
+    CompilationBlocks blocks = {0};
+    Cmds compile_commands = {0};
+
+    int return_val = EXIT_SUCCESS;
+    if (cli.clean) {
+        if (file_exists(BUILD_DIR))               delete_tree(BUILD_DIR);
+        if (file_exists("compile_commands.json")) delete_file("compile_commands.json");
+        if (file_exists(".vscode"))               delete_tree(".vscode");
+        if (file_exists(".cache"))                delete_tree(".cache");
+        printf("Deleted all build artifacts and cleared build cache.\n");
+        goto done;
+    }
+
+    mkdir_if_not_exists(BUILD_DIR);
+
+    if (cli.cache) {
+        mkdir_if_not_exists(CACHE_DIR);
+        mkdir_if_not_exists(CCACHE_CACHE_DIR);
+#ifdef _MSC_VER
+        _putenv_s("CCACHE_DIR", CCACHE_CACHE_DIR);
+#else
+        setenv("CCACHE_DIR", CCACHE_CACHE_DIR, 1);
+#endif
+
+        // Clear ccache stats
+        cmd_append(&cmd, CCACHE_BIN, "-z");
+        if (!cmd_run(&cmd,
+                     .stdout_path = CCACHE_CACHE_DIR"/garbage_out",
+                     .stderr_path = CCACHE_CACHE_DIR"/garbage_err")) {
+            return_val = EXIT_FAILURE;
+        }
+    }
+
+    const uint64_t before_generate_stuff_ns = nanos_since_unspecified_epoch();
+    if (!generate_stuff(&blocks, &compile_commands)) {
+        return_val = EXIT_FAILURE;
+        goto done;
+    }
+    const uint64_t after_generate_stuff_ns = nanos_since_unspecified_epoch();
+    const uint64_t generate_stuff_time = after_generate_stuff_ns - before_generate_stuff_ns;
+
+    if (!mkdir_if_not_exists(BIN_DIR)) {
+        return_val = EXIT_FAILURE;
+        goto done;
+    }
+
+    const uint64_t before_compilation_ns = nanos_since_unspecified_epoch();
+    if (!build_objects(&compile_commands)) {
+        return_val = EXIT_FAILURE;
+        goto done;
+    }
+    const uint64_t after_compilation_ns = nanos_since_unspecified_epoch();
+    const uint64_t compilation_time = after_compilation_ns - before_compilation_ns;
+
+    const uint64_t before_linking_ns = nanos_since_unspecified_epoch();
+    if(!link_aoc2025(&blocks)) {
+        return_val = EXIT_FAILURE;
+        goto done;
+    }
+    const uint64_t after_linking_ns = nanos_since_unspecified_epoch();
+    const uint64_t linking_time = after_linking_ns - before_linking_ns;
+
+    const uint64_t before_package_ns = nanos_since_unspecified_epoch();
+    if (cli.package) {
+        if (!package_distribution()) {
+            return_val = EXIT_FAILURE;
+            goto done;
+        }
+    }
+    const uint64_t after_package_ns = nanos_since_unspecified_epoch();
+    const uint64_t package_time = after_package_ns - before_package_ns;
+
+    printf("\n==== BUILD FINISHED ===\n\n");
+
+    if (cli.cache) {
+        // Print ccache stats for this build
+        cmd_append(&cmd, CCACHE_BIN, "-s");
+        const char *ccache_stats_file = CCACHE_CACHE_DIR"/ccache_stats.txt";
+        if (cmd_run(&cmd, .stdout_path = ccache_stats_file)) {
+            String_Builder sb = {0};
+            if (read_entire_file(ccache_stats_file, &sb)) {
+                sb_append_null(&sb);
+                printf(" == CACHE ==\n%s\n", sb.items);
+            }
+            sb_free(sb);
+        }
+        cmd.count = 0;
+    }
+
+    size_t checkpoint = temp_save();
+
+    const char     *generate_stuff_time_fmt     = temp_sprintf("%.4f", (double)generate_stuff_time  / NANOS_PER_SEC);
+    const size_t    generate_stuff_time_fmt_len = strlen(generate_stuff_time_fmt);
+    const char     *compilation_time_fmt        = temp_sprintf("%.4f", (double)compilation_time / NANOS_PER_SEC);
+    const size_t    compilation_time_fmt_len    = strlen(compilation_time_fmt);
+    const char     *linking_time_fmt            = temp_sprintf("%.4f", (double)linking_time / NANOS_PER_SEC);
+    const size_t    linking_time_fmt_len        = strlen(linking_time_fmt);
+    const char     *package_time_fmt            = temp_sprintf("%.4f", (double)package_time     / NANOS_PER_SEC);
+    const size_t    package_time_fmt_len        = strlen(package_time_fmt);
+    const uint64_t  total_time                  = generate_stuff_time + compilation_time + linking_time + (cli.package ? package_time : 0);
+    const char     *total_time_fmt              = temp_sprintf("%.4f", (double)total_time  / NANOS_PER_SEC);
+    const size_t    total_time_fmt_len          = strlen(total_time_fmt);
+    size_t          longest_num                 = generate_stuff_time_fmt_len;
+    if (compilation_time_fmt_len > longest_num) longest_num = compilation_time_fmt_len;
+    if (linking_time_fmt_len > longest_num) longest_num = linking_time_fmt_len;
+    if (cli.package && package_time_fmt_len > longest_num) longest_num = package_time_fmt_len;
+    if (total_time_fmt_len > longest_num) longest_num = total_time_fmt_len;
+    const size_t generate_stuff_time_pad  = longest_num - generate_stuff_time_fmt_len;
+    const size_t compilation_time_pad = longest_num - compilation_time_fmt_len;
+    const size_t linking_time_pad = longest_num - linking_time_fmt_len;
+    const size_t package_time_pad     = longest_num - package_time_fmt_len;
+    const size_t total_time_pad       = longest_num - total_time_fmt_len;
+    printf("\n == Timing ==\n");
+    printf("Generation..: %*s%s seconds\n", (int)generate_stuff_time_pad, "", generate_stuff_time_fmt);
+    printf("Compilation.: %*s%s seconds\n", (int)compilation_time_pad, "", compilation_time_fmt);
+    printf("Linking.....: %*s%s seconds\n", (int)linking_time_pad, "", linking_time_fmt);
+    if (cli.package) printf("Packaging...: %*s%s seconds\n", (int)package_time_pad, "", package_time_fmt);
+    printf("              "); for (size_t i = 0; i < longest_num; ++i) printf("%c", '-'); printf("--------\n");
+    printf("Total.......: %*s%s seconds\n", (int)total_time_pad, "", total_time_fmt);
+    fflush(stdout);
+    fflush(stderr);
+
+    temp_rewind(checkpoint);
+
+    printf("\n\n == BUILD ARTIFACTS ==\n");
+    printf("Built binary: \""AOC2025_BIN"\". (Run from root directory of source tree)\n");
+    if (cli.package) {
+        printf("Archived distribution: \""AOC2025_DISTRIBUTION_ARCHIVE"\"\n");
+        printf("SHA256 sum of archive: \""AOC2025_DISTRIBUTION_HASH_FILE"\"\n");
+    }
+    printf("\n"); fflush(stdout);
+
+    if (cli.run) {
+        cmd_append(&cmd, AOC2025_BIN);
+        printf("\nRunning :: "AOC2025_BIN" ");
+        for (int i = 0; i < cli.remainder_argc; ++i) {
+            cmd_append(&cmd, cli.remainder_argv[(size_t)i]);
+            printf(" %s", cli.remainder_argv[(size_t)i]);
+        }
+        printf("\n");
+        fflush(stdout);
+        fflush(stderr);
+        if (!cmd_run_sync_and_reset(&cmd)) return_val = 1;
+        goto done;
+    }
+
+done:
+    da_free(compile_commands);
+    da_free(blocks);
+    da_free(cmd);
+    destroy_cli();
+
+    return return_val;
+}

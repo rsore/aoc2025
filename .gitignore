@@ -1,0 +1,9 @@
+build/
+bs
+bs.old
+bs.exe
+bs.exe.old
+bs.obj
+compile_commands.json
+.vscode
+.cache

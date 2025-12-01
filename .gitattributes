@@ -1,0 +1,5 @@
+# Enforce LF line endings globally
+* text=auto eol=lf
+
+# Vendored code
+vendor/** linguist-vendored
