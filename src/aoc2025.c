@@ -23,7 +23,7 @@ struct {
 
     char *test_result;
     char *real_result;
-} static days[] = {
+} days[] = {
     { .day_button_title  = "Day 1 - Part 1",
       .title_file        = "data/day1/part1_title.txt",
       .description_file  = "data/day1/part1_description.txt",
@@ -70,6 +70,7 @@ handle_day_button_interaction(Clay_ElementId   element_id,
                               Clay_PointerData pointer_info,
                               intptr_t         user_data)
 {
+    UNUSED(element_id);
     usize index = (usize)user_data;
     if (pointer_info.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
         if (index <= ARRAY_LENGTH(days)) {
@@ -83,6 +84,7 @@ handle_run_button_interaction(Clay_ElementId   element_id,
                               Clay_PointerData pointer_info,
                               intptr_t         user_data)
 {
+    UNUSED(element_id);
     bool test = (bool)user_data;
     if (pointer_info.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
         if (test) {

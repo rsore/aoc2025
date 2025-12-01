@@ -13,7 +13,7 @@ read_entire_file(const char *path)
     fseek(f, 0, SEEK_SET);
 
     char *result = malloc(fsize + 1);
-    fread(result, fsize, 1, f);
+    usize read = fread(result, fsize, 1, f); UNUSED(read);
     fclose(f);
 
     result[fsize] = 0;

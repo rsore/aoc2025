@@ -8,6 +8,10 @@ This is my solutions for the challenges from [Advent Of Code 2025](https://adven
  - Microsoft Visual C++ (MSVC) Build Tools
 
 ### Linux
+ - Git LFS (e.g. `dnf install git-lfs && git lfs install`)
+ - Wayland development package (e.g. `wayland-devel`)
+ - xkbcommon development pacakge (e.g. `libxkbcommon-devel`)
+ - X11 development packages (e.g. `libX11-devel`, `libXcursor-devel`, `libXrandr-devel`, `libXinerama-devel`, `libXi-devel`)
  - C compiler (gcc/clang)
 
 ## Build

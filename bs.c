@@ -85,7 +85,7 @@ static const char *aoc2025_compile_options[] = {
     "/W3"
 };
 static const char *debug_definitions[] = {
-    "/DEBUG", "/D_CRT_SECURE_NO_WARNINGS"
+    "/D_CRT_SECURE_NO_WARNINGS"
 };
 static const char *release_definitions[] = {
     "/DNDEBUG", "/D_CRT_SECURE_NO_WARNINGS"
@@ -101,7 +101,7 @@ static const char *release_link_options[] = {
 };
 #else
 static const char *common_compile_options[] = {
-    "-c", "-fPIC"
+    "-c", "-fPIC", "-Wno-unused-result"
 };
 static const char *debug_compile_options[] = {
     "-O0", "-ggdb", "-fno-omit-frame-pointer"
@@ -110,21 +110,20 @@ static const char *release_compile_options[] = {
     "-O3", "-ffunction-sections", "-fdata-sections", "-flto", "-fvisibility=hidden"
 };
 static const char *aoc2025_compile_options[] = {
-    "-Wall -Wextra"
+    "-Wall", "-Wextra"
 };
 static const char *debug_definitions[] = {
-    "-DDEBUG"
 };
 static const char *release_definitions[] = {
     "-DNDEBUG"
-};
-static const char *debug_definitions[] = {
-    "-DAOC2025_DEBUG=1"
 };
 static const char *common_link_options[] = {
     "-ldl", "-lpthread", "-lm", "-Wl,--gc-sections", "-Wl,--as-needed", "-Wl,-O1", "-flto=auto"
 };
 static const char *debug_link_options[] = {
+
+};
+static const char *release_link_options[] = {
 
 };
 #endif
@@ -795,6 +794,8 @@ prepare_aoc2025(CompilationBlocks *blocks)
         { .source = SRC_DIR"/win32_aoc2025.c",
           .object = AOC2025_OBJECT_DIR"/win32_aoc2025"OBJ_FILE_EXT},
 #else
+        { .source = SRC_DIR"/linux_aoc2025.c",
+          .object = AOC2025_OBJECT_DIR"/linux_aoc2025"OBJ_FILE_EXT},
 #endif
     };
     for (size_t i = 0; i < ARRAY_LENGTH(targets); ++i) {
@@ -812,8 +813,10 @@ prepare_aoc2025(CompilationBlocks *blocks)
     da_append(&block.include_directories, SV_DIR);
     da_append(&block.include_directories, AOC2025_GENERATED_DIR);
 
+#ifdef _MSC_VER
     da_append(&block.options, "/wd4244");
     da_append(&block.options, "/wd4305");
+#endif
 
     da_append(blocks, block);
 
