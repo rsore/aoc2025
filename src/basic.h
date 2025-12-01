@@ -26,4 +26,11 @@ typedef float f32;
 char *read_entire_file(const char *path);
 char *sprint(const char *fmt, ...);
 
+static inline u64
+absolute_value(s64 val)
+{
+    if (val < 0) val *= -1;
+    return val;
+}
+
 #endif

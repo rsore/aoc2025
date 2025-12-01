@@ -24,12 +24,18 @@ struct {
     char *test_result;
     char *real_result;
 } static days[] = {
-    { .day_button_title  = "Day 1",
-      .title_file        = "data/day1/title.txt",
-      .description_file  = "data/day1/description.txt",
+    { .day_button_title  = "Day 1 - Part 1",
+      .title_file        = "data/day1/part1_title.txt",
+      .description_file  = "data/day1/part1_description.txt",
       .example_data_file = "data/day1/example_data.txt",
       .real_data_file    = "data/day1/real_data.txt",
-      .func              = day1 },
+      .func              = day1_part1 },
+    { .day_button_title  = "Day 1 - Part 2",
+      .title_file        = "data/day1/part2_title.txt",
+      .description_file  = "data/day1/part2_description.txt",
+      .example_data_file = "data/day1/example_data.txt",
+      .real_data_file    = "data/day1/real_data.txt",
+      .func              = day1_part2 },
 };
 
 
