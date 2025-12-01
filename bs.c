@@ -24,7 +24,6 @@
 
 #define SRC_DIR               "src"
 #define DATA_DIR              "data"
-#define RES_DIR               "res"
 #define BUILD_DIR             "build"
 #define BIN_DIR               BUILD_DIR"/bin"
 #define OBJECT_DIR            BUILD_DIR"/obj"
@@ -870,7 +869,7 @@ generate_win32_resource_file(void)
     const char *cpp_header_file_content = "#define IDI_APP_ICON 101\n";
     const char *resource_file_content =
         "#include \"win32_resource.h\"\n"
-        "IDI_APP_ICON ICON \"res/win32_icon.ico\"\n";
+        "IDI_APP_ICON ICON \"data/win32_icon.ico\"\n";
     DO_OR_FAIL(write_entire_file(AOC2025_GENERATED_DIR"/win32_resource.h", cpp_header_file_content, strlen(cpp_header_file_content)));
     DO_OR_FAIL(write_entire_file(AOC2025_GENERATED_DIR"/win32_resource.rc", resource_file_content, strlen(resource_file_content)));
 
@@ -1389,7 +1388,6 @@ package_distribution(void)
     if (file_exists(AOC2025_DISTRIBUTION_DIR)) DO_OR_FAIL(nob_delete_tree(AOC2025_DISTRIBUTION_DIR));
     DO_OR_FAIL(mkdir_if_not_exists(AOC2025_DISTRIBUTION_DIR));
     DO_OR_FAIL(copy_directory_recursively(DATA_DIR, AOC2025_DISTRIBUTION_DIR"/data"));
-    DO_OR_FAIL(copy_directory_recursively(RES_DIR, AOC2025_DISTRIBUTION_DIR"/res"));
     DO_OR_FAIL(copy_file(AOC2025_BIN, AOC2025_DISTRIBUTION_DIR"/"AOC2025_BIN_NAME));
 #ifndef _MSC_VER
     cmd_append(&cmd, "strip", "-s", AOC2025_DISTRIBUTION_DIR"/"AOC2025_BIN_NAME);

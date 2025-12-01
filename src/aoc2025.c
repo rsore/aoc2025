@@ -362,12 +362,12 @@ aoc2025_entry(void)
                     (Clay_ErrorHandler){handle_clay_errors, 0});
     Clay_Raylib_Initialize(1920, 1080, "Advent of Code 2025",
                            FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
-    aoc_icon = LoadTexture("res/aoc_icon.png");
+    aoc_icon = LoadTexture("data/aoc_icon.png");
     set_native_window_icon();
 
-    fonts[FONT_ID_BODY_24] = LoadFontEx("res/Roboto-Regular.ttf", 48, 0, 400);
+    fonts[FONT_ID_BODY_24] = LoadFontEx("data/Roboto-Regular.ttf", 48, 0, 400);
     SetTextureFilter(fonts[FONT_ID_BODY_24].texture, TEXTURE_FILTER_BILINEAR);
-    fonts[FONT_ID_BODY_16] = LoadFontEx("res/Roboto-Regular.ttf", 32, 0, 400);
+    fonts[FONT_ID_BODY_16] = LoadFontEx("data/Roboto-Regular.ttf", 32, 0, 400);
     SetTextureFilter(fonts[FONT_ID_BODY_16].texture, TEXTURE_FILTER_BILINEAR);
     Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 
