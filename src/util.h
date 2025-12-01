@@ -1,8 +1,8 @@
 #ifndef UTIL_H
 #define UTIL_H
 
-#include "stdint.h"
-#include "stddef.h"
+#include <stdint.h>
+#include <stddef.h>
 
 // Fundamental types
 typedef size_t usize;
@@ -23,5 +23,6 @@ typedef float f32;
 #define UNUSED(x) (void)(x);
 #define ARRAY_LENGTH(arr) (sizeof((arr)) / sizeof(*(arr)))
 
+char *read_entire_file(const char *path);
 
 #endif

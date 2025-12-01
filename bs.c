@@ -22,11 +22,14 @@
     } while (0)
 
 
-#define SRC_DIR        "src"
-#define DATA_DIR       "data"
-#define BUILD_DIR      "build"
-#define BIN_DIR        BUILD_DIR"/bin"
-#define OBJECT_DIR     BUILD_DIR"/obj"
+#define SRC_DIR               "src"
+#define DATA_DIR              "data"
+#define RES_DIR               "res"
+#define BUILD_DIR             "build"
+#define BIN_DIR               BUILD_DIR"/bin"
+#define OBJECT_DIR            BUILD_DIR"/obj"
+#define GENERATED_DIR         BUILD_DIR"/generated"
+#define AOC2025_GENERATED_DIR GENERATED_DIR"/aoc2025"
 
 #define AOC2025_DISTRIBUTION_DIR          BUILD_DIR"/"AOC2025_DISTRIBUTION_DIR_NAME
 
@@ -70,13 +73,16 @@ const char *CC  = NULL;
 
 #ifdef _MSC_VER
 static const char *common_compile_options[] = {
-    "/nologo", "/c", "/EHsc", "/utf-8", "/W3"
+    "/nologo", "/c", "/EHsc", "/utf-8"
 };
 static const char *debug_compile_options[] = {
     "/Z7", "/Od", "/MTd",
 };
 static const char *release_compile_options[] = {
     "/O2", "/GL", "/MT", "/Gy", "/Gw"
+};
+static const char *aoc2025_compile_options[] = {
+    "/W3"
 };
 static const char *debug_definitions[] = {
     "/DEBUG", "/D_CRT_SECURE_NO_WARNINGS"
@@ -85,20 +91,26 @@ static const char *release_definitions[] = {
     "/DNDEBUG", "/D_CRT_SECURE_NO_WARNINGS"
 };
 static const char *common_link_options[] = {
-    "/nologo", "/link", "/INCREMENTAL:NO", "user32.lib", "gdi32.lib", "shell32.lib", "/SUBSYSTEM:CONSOLE", "/OPT:REF", "/OPT:ICF"
+    "/nologo", "/link", "/INCREMENTAL:NO", "user32.lib", "gdi32.lib", "shell32.lib", "Winmm.lib", "/SUBSYSTEM:WINDOWS", "/OPT:REF", "/OPT:ICF"
 };
 static const char *debug_link_options[] = {
     "/DEBUG"
 };
+static const char *release_link_options[] = {
+    "/LTCG"
+};
 #else
 static const char *common_compile_options[] = {
-    "-c", "-fPIC", "-Wall", "-Wextra"
+    "-c", "-fPIC"
 };
 static const char *debug_compile_options[] = {
     "-O0", "-ggdb", "-fno-omit-frame-pointer"
 };
 static const char *release_compile_options[] = {
     "-O3", "-ffunction-sections", "-fdata-sections", "-flto", "-fvisibility=hidden"
+};
+static const char *aoc2025_compile_options[] = {
+    "-Wall -Wextra"
 };
 static const char *debug_definitions[] = {
     "-DDEBUG"
@@ -456,6 +468,201 @@ typedef struct {
 
 static ThirdPartyLicenses third_party_licenses = {0};
 
+
+#define WAYLAND_DIR           "vendor/wayland"
+#define WAYLAND_GENERATED_DIR GENERATED_DIR"/wayland"
+
+static inline bool
+generate_wayland_files(void)
+{
+#ifdef _MSC_VER
+    // Windows does not user wayland
+    return true;
+#else
+
+    bool return_val = true;
+
+    Cmd cmd = {0};
+    Procs procs = {0};
+    size_t chk = temp_save();
+
+    DO_OR_FAIL(mkdir_if_not_exists(WAYLAND_GENERATED_DIR));
+
+    static struct {
+        const char *xml;
+        const char *header;
+        const char *code;
+    } wayland_exports[] = {
+        { .xml    = WAYLAND_DIR"/fractional-scale-v1.xml",
+          .header = WAYLAND_GENERATED_DIR"/fractional-scale-v1-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/fractional-scale-v1-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/idle-inhibit-unstable-v1.xml",
+          .header = WAYLAND_GENERATED_DIR"/idle-inhibit-unstable-v1-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/idle-inhibit-unstable-v1-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/pointer-constraints-unstable-v1.xml",
+          .header = WAYLAND_GENERATED_DIR"/pointer-constraints-unstable-v1-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/pointer-constraints-unstable-v1-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/relative-pointer-unstable-v1.xml",
+          .header = WAYLAND_GENERATED_DIR"/relative-pointer-unstable-v1-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/relative-pointer-unstable-v1-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/viewporter.xml",
+          .header = WAYLAND_GENERATED_DIR"/viewporter-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/viewporter-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/wayland.xml",
+          .header = WAYLAND_GENERATED_DIR"/wayland-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/wayland-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/xdg-activation-v1.xml",
+          .header = WAYLAND_GENERATED_DIR"/xdg-activation-v1-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/xdg-activation-v1-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/xdg-decoration-unstable-v1.xml",
+          .header = WAYLAND_GENERATED_DIR"/xdg-decoration-unstable-v1-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/xdg-decoration-unstable-v1-client-protocol-code.h" },
+        { .xml    = WAYLAND_DIR"/xdg-shell.xml",
+          .header = WAYLAND_GENERATED_DIR"/xdg-shell-client-protocol.h",
+          .code   = WAYLAND_GENERATED_DIR"/xdg-shell-client-protocol-code.h" }
+    };
+
+    for (size_t i = 0; i < ARRAY_LENGTH(wayland_exports); ++i) {
+        cmd.count = 0;
+        const char *xml    = wayland_exports[i].xml;
+        const char *header = wayland_exports[i].header;
+        const char *code   = wayland_exports[i].code;
+
+        cmd_append(&cmd, "wayland-scanner", "client-header", xml, header);
+        DO_OR_FAIL(cmd_run(&cmd, .async = &procs, .max_procs = cli.jobs));
+
+        cmd_append(&cmd, "wayland-scanner", "private-code", xml, code);
+        DO_OR_FAIL(cmd_run(&cmd, .async = &procs, .max_procs = cli.jobs));
+    }
+    DO_OR_FAIL(procs_flush(&procs));
+
+    printf("Generated Wayland headers\n"); fflush(stdout);
+
+done:
+    temp_rewind(chk);
+    da_free(procs);
+    da_free(cmd);
+    fflush(stdout);
+
+    ThirdPartyLicense license = {"Wayland", WAYLAND_DIR"/COPYING"};
+    da_append(&third_party_licenses, license);
+
+    return return_val;
+#endif
+}
+
+
+#define GLFW_DIR          "vendor/glfw"
+#define GLFW_SRC_DIR      GLFW_DIR"/src"
+#define GLFW_INCLUDE_DIR  GLFW_DIR"/include"
+#define GLFW_OBJECT_DIR   OBJECT_DIR"/glfw"
+
+static inline bool
+prepare_glfw(CompilationBlocks *blocks)
+{
+    if (!mkdir_if_not_exists(GLFW_OBJECT_DIR)) return false;
+
+    CompilationBlock block = {0};
+
+    static Target glfw_targets[] = {
+        { .source = GLFW_SRC_DIR"/context.c",
+          .object = GLFW_OBJECT_DIR"/context"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/egl_context.c",
+          .object = GLFW_OBJECT_DIR"/egl_context"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/init.c",
+          .object = GLFW_OBJECT_DIR"/init"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/input.c",
+          .object = GLFW_OBJECT_DIR"/input"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/monitor.c",
+          .object = GLFW_OBJECT_DIR"/monitor"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/null_init.c",
+          .object = GLFW_OBJECT_DIR"/null_init"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/null_joystick.c",
+          .object = GLFW_OBJECT_DIR"/null_joystick"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/null_monitor.c",
+          .object = GLFW_OBJECT_DIR"/null_monitor"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/null_window.c",
+          .object = GLFW_OBJECT_DIR"/null_window"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/osmesa_context.c",
+          .object = GLFW_OBJECT_DIR"/osmesa_context"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/platform.c",
+          .object = GLFW_OBJECT_DIR"/platform"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/vulkan.c",
+          .object = GLFW_OBJECT_DIR"/vulkan"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/wgl_context.c",
+          .object = GLFW_OBJECT_DIR"/wgl_context"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/window.c",
+          .object = GLFW_OBJECT_DIR"/window"OBJ_FILE_EXT},
+#ifdef _MSC_VER
+        { .source = GLFW_SRC_DIR"/win32_init.c",
+          .object = GLFW_OBJECT_DIR"/win32_init"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/win32_joystick.c",
+          .object = GLFW_OBJECT_DIR"/win32_joystick"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/win32_module.c",
+          .object = GLFW_OBJECT_DIR"/win32_module"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/win32_monitor.c",
+          .object = GLFW_OBJECT_DIR"/win32_monitor"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/win32_thread.c",
+          .object = GLFW_OBJECT_DIR"/win32_thread"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/win32_time.c",
+          .object = GLFW_OBJECT_DIR"/win32_time"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/win32_window.c",
+          .object = GLFW_OBJECT_DIR"/win32_window"OBJ_FILE_EXT}
+#else
+        { .source = GLFW_SRC_DIR"/glx_context.c",
+          .object = GLFW_OBJECT_DIR"/glx_context"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/linux_joystick.c",
+          .object = GLFW_OBJECT_DIR"/linux_joystick"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/posix_module.c",
+          .object = GLFW_OBJECT_DIR"/posix_module"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/posix_poll.c",
+          .object = GLFW_OBJECT_DIR"/posix_poll"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/posix_thread.c",
+          .object = GLFW_OBJECT_DIR"/posix_thread"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/posix_time.c",
+          .object = GLFW_OBJECT_DIR"/posix_time"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/wl_init.c",
+          .object = GLFW_OBJECT_DIR"/wl_init"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/wl_monitor.c",
+          .object = GLFW_OBJECT_DIR"/wl_monitor"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/wl_window.c",
+          .object = GLFW_OBJECT_DIR"/wl_window"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/x11_init.c",
+          .object = GLFW_OBJECT_DIR"/x11_init"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/x11_monitor.c",
+          .object = GLFW_OBJECT_DIR"/x11_monitor"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/x11_window.c",
+          .object = GLFW_OBJECT_DIR"/x11_window"OBJ_FILE_EXT},
+        { .source = GLFW_SRC_DIR"/xkb_unicode.c",
+          .object = GLFW_OBJECT_DIR"/xkb_unicode"OBJ_FILE_EXT}
+#endif
+    };
+
+    for (size_t i = 0; i < ARRAY_LENGTH(glfw_targets); ++i) {
+        da_append(&block.targets, glfw_targets[i]);
+    }
+
+    da_append(&block.include_directories, GLFW_INCLUDE_DIR);
+
+#ifdef _MSC_VER
+    da_append(&block.definitions, "_GLFW_WIN32");
+    da_append(&block.options, "/wd4005");
+#else
+    da_append(&block.include_directories, WAYLAND_GENERATED_DIR);
+    da_append(&block.definitions, "_POSIX_C_SOURCE=200809L");
+    da_append(&block.definitions, "_GLFW_WAYLAND");
+    da_append(&block.definitions, "_GLFW_X11");
+#endif
+
+    da_append(blocks, block);
+
+    ThirdPartyLicense license = {"GLFW", GLFW_DIR"/LICENSE.md"};
+    da_append(&third_party_licenses, license);
+
+    return true;
+}
+
+
 #define CAP_SRC_DIR "vendor/cap/"
 #define CAP_OBJECT_DIR OBJECT_DIR"/cap"
 
@@ -483,6 +690,93 @@ prepare_cap(CompilationBlocks *blocks)
 }
 
 
+
+#define RAYLIB_DIR "vendor/raylib-5.5/"
+#define RAYLIB_SRC_DIR RAYLIB_DIR"/src"
+#define RAYLIB_OBJECT_DIR OBJECT_DIR"/raylib"
+
+static inline bool
+prepare_raylib(CompilationBlocks *blocks)
+{
+    if (!mkdir_if_not_exists(RAYLIB_OBJECT_DIR)) return false;
+
+    CompilationBlock block = {0};
+
+    static Target raylib_targets[] = {
+        { .source = RAYLIB_SRC_DIR"/raudio.c",
+          .object = RAYLIB_OBJECT_DIR"/raudio"OBJ_FILE_EXT},
+        { .source = RAYLIB_SRC_DIR"/rcore.c",
+          .object = RAYLIB_OBJECT_DIR"/rcore"OBJ_FILE_EXT},
+        { .source = RAYLIB_SRC_DIR"/rmodels.c",
+          .object = RAYLIB_OBJECT_DIR"/rmodels"OBJ_FILE_EXT},
+        { .source = RAYLIB_SRC_DIR"/rshapes.c",
+          .object = RAYLIB_OBJECT_DIR"/rshapes"OBJ_FILE_EXT},
+        { .source = RAYLIB_SRC_DIR"/rtext.c",
+          .object = RAYLIB_OBJECT_DIR"/rtext"OBJ_FILE_EXT},
+        { .source = RAYLIB_SRC_DIR"/rtextures.c",
+          .object = RAYLIB_OBJECT_DIR"/rtextures"OBJ_FILE_EXT},
+        { .source = RAYLIB_SRC_DIR"/utils.c",
+          .object = RAYLIB_OBJECT_DIR"/utils"OBJ_FILE_EXT}
+    };
+    for (size_t i = 0; i < ARRAY_LENGTH(raylib_targets); ++i) {
+        da_append(&block.targets, raylib_targets[i]);
+    }
+
+    da_append(&block.definitions, "PLATFORM_DESKTOP_GLFW");
+    da_append(&block.include_directories, GLFW_INCLUDE_DIR);
+
+#ifdef _MSC_VER
+    da_append(&block.options, "/wd4005");
+#endif
+
+    ThirdPartyLicense license = {"raylib", RAYLIB_DIR"/LICENSE"};
+    da_append(&third_party_licenses, license);
+
+    da_append(blocks, block);
+
+    return true;
+}
+
+
+#define CLAY_DIR "vendor/clay-0.14/"
+#define CLAY_OBJECT_DIR OBJECT_DIR"/clay"
+
+static inline bool
+prepare_clay(CompilationBlocks *blocks)
+{
+    if (!mkdir_if_not_exists(CLAY_OBJECT_DIR)) return false;
+
+    CompilationBlock block = {0};
+
+    static Target clay_targets[] = {
+        { .source = CLAY_DIR"/clay.c",
+          .object = CLAY_OBJECT_DIR"/clay"OBJ_FILE_EXT}
+    };
+    for (size_t i = 0; i < ARRAY_LENGTH(clay_targets); ++i) {
+        da_append(&block.targets, clay_targets[i]);
+    }
+
+    da_append(&block.include_directories, RAYLIB_SRC_DIR);
+    da_append(&block.definitions, "PLATFORM_DESKTOP_GLFW");
+    da_append(&block.include_directories, GLFW_INCLUDE_DIR);
+
+    // Clay produces a lot of warnings, let's ignore them
+#ifdef _MSC_VER
+    da_append(&block.options, "/w");
+#else
+    da_append(&block.options, "-w");
+#endif
+
+
+    ThirdPartyLicense license = {"clay", CLAY_DIR"/LICENSE.md"};
+    da_append(&third_party_licenses, license);
+
+    da_append(blocks, block);
+
+    return true;
+}
+
+
 static inline bool
 prepare_aoc2025(CompilationBlocks *blocks)
 {
@@ -491,28 +785,34 @@ prepare_aoc2025(CompilationBlocks *blocks)
     CompilationBlock block = {0};
 
     Target targets[] = {
-        { .source = SRC_DIR"/main.c",
-          .object = AOC2025_OBJECT_DIR"/main"OBJ_FILE_EXT},
+        { .source = SRC_DIR"/aoc2025.c",
+          .object = AOC2025_OBJECT_DIR"/aoc2025"OBJ_FILE_EXT},
+        { .source = SRC_DIR"/util.c",
+          .object = AOC2025_OBJECT_DIR"/util"OBJ_FILE_EXT},
         { .source = SRC_DIR"/day1.c",
           .object = AOC2025_OBJECT_DIR"/day1"OBJ_FILE_EXT},
+#ifdef _MSC_VER
+        { .source = SRC_DIR"/win32_aoc2025.c",
+          .object = AOC2025_OBJECT_DIR"/win32_aoc2025"OBJ_FILE_EXT},
+#else
+#endif
     };
     for (size_t i = 0; i < ARRAY_LENGTH(targets); ++i) {
         da_append(&block.targets, targets[i]);
     }
 
-    for (size_t i = 0; i < ARRAY_LENGTH(common_compile_options); ++i) {
-        da_append(&block.options, common_compile_options[i]);
+    for (size_t i = 0; i < ARRAY_LENGTH(aoc2025_compile_options); ++i) {
+        da_append(&block.options, aoc2025_compile_options[i]);
     }
-    if (cli.debug) {
-        for (size_t i = 0; i < ARRAY_LENGTH(debug_definitions); ++i) {
-            da_append(&block.options, debug_definitions[i]);
-        }
-    } else {
-        for (size_t i = 0; i < ARRAY_LENGTH(release_definitions); ++i) {
-            da_append(&block.options, release_definitions[i]);
-        }
-    }
+
     da_append(&block.include_directories, "vendor/cap/");
+
+    da_append(&block.include_directories, RAYLIB_SRC_DIR);
+    da_append(&block.include_directories, CLAY_DIR);
+    da_append(&block.include_directories, AOC2025_GENERATED_DIR);
+
+    da_append(&block.options, "/wd4244");
+    da_append(&block.options, "/wd4305");
 
     da_append(blocks, block);
 
@@ -553,6 +853,33 @@ done:
 
 
 static inline bool
+generate_win32_resource_file(void)
+{
+#ifndef _MSC_VER
+    return true;
+#endif
+
+    bool return_val = true;
+
+    Cmd cmd = {0};
+
+    const char *cpp_header_file_content = "#define IDI_APP_ICON 101\n";
+    const char *resource_file_content =
+        "#include \"win32_resource.h\"\n"
+        "IDI_APP_ICON ICON \"res/win32_icon.ico\"\n";
+    DO_OR_FAIL(write_entire_file(AOC2025_GENERATED_DIR"/win32_resource.h", cpp_header_file_content, strlen(cpp_header_file_content)));
+    DO_OR_FAIL(write_entire_file(AOC2025_GENERATED_DIR"/win32_resource.rc", resource_file_content, strlen(resource_file_content)));
+
+    const char *rc_command[] = {"rc", "/fo", AOC2025_GENERATED_DIR"/win32_resource.res", AOC2025_GENERATED_DIR"/win32_resource.rc"};
+    da_append_many(&cmd, rc_command, ARRAY_LENGTH(rc_command));
+    DO_OR_FAIL(cmd_run(&cmd));
+
+done:
+    da_free(cmd);
+    return return_val;
+}
+
+static inline bool
 link_aoc2025(CompilationBlocks *blocks)
 {
     bool return_val = true;
@@ -576,12 +903,20 @@ link_aoc2025(CompilationBlocks *blocks)
         }
     }
 
+#ifdef _MSC_VER
+    da_append(&cmd, AOC2025_GENERATED_DIR"/win32_resource.res");
+#endif
+
     for (size_t i = 0; i < ARRAY_LENGTH(common_link_options); ++i) {
         da_append(&cmd, common_link_options[i]);
     }
     if (cli.debug) {
         for (size_t i = 0; i < ARRAY_LENGTH(debug_link_options); ++i) {
             da_append(&cmd, debug_link_options[i]);
+        }
+    } else {
+        for (size_t i = 0; i < ARRAY_LENGTH(release_link_options); ++i) {
+            da_append(&cmd, release_link_options[i]);
         }
     }
 
@@ -779,9 +1114,17 @@ generate_stuff(CompilationBlocks *blocks, Cmds *out_compile_commands)
 
     DO_OR_FAIL(mkdir_if_not_exists(BUILD_DIR));
     DO_OR_FAIL(mkdir_if_not_exists(OBJECT_DIR));
+    DO_OR_FAIL(mkdir_if_not_exists(GENERATED_DIR));
+    DO_OR_FAIL(mkdir_if_not_exists(AOC2025_GENERATED_DIR));
+
+    DO_OR_FAIL(generate_win32_resource_file());
+    DO_OR_FAIL(generate_wayland_files());
 
     DO_OR_FAIL(prepare_aoc2025(blocks));
+    DO_OR_FAIL(prepare_raylib(blocks));
+    DO_OR_FAIL(prepare_glfw(blocks));
     DO_OR_FAIL(prepare_cap(blocks));
+    DO_OR_FAIL(prepare_clay(blocks));
 
     *out_compile_commands = generate_compile_commands(blocks);
 
@@ -1042,6 +1385,7 @@ package_distribution(void)
     if (file_exists(AOC2025_DISTRIBUTION_DIR)) DO_OR_FAIL(nob_delete_tree(AOC2025_DISTRIBUTION_DIR));
     DO_OR_FAIL(mkdir_if_not_exists(AOC2025_DISTRIBUTION_DIR));
     DO_OR_FAIL(copy_directory_recursively(DATA_DIR, AOC2025_DISTRIBUTION_DIR"/data"));
+    DO_OR_FAIL(copy_directory_recursively(RES_DIR, AOC2025_DISTRIBUTION_DIR"/res"));
     DO_OR_FAIL(copy_file(AOC2025_BIN, AOC2025_DISTRIBUTION_DIR"/"AOC2025_BIN_NAME));
 #ifndef _MSC_VER
     cmd_append(&cmd, "strip", "-s", AOC2025_DISTRIBUTION_DIR"/"AOC2025_BIN_NAME);
