@@ -36,27 +36,27 @@ struct {
     char        *part2_real_result;
 
 } days[] = {
-    { .day_button_title  = "Day 1",
-      .title_file        = "data/day1/title.txt",
-      .part1_description_file  = "data/day1/part1_description.txt",
-      .part1_test_data_file = "data/day1/test_data.txt",
-      .part1_real_data_file    = "data/day1/real_data.txt",
-      .part1_func              = day1_part1,
-      .part2_description_file  = "data/day1/part2_description.txt",
-      .part2_test_data_file = "data/day1/test_data.txt",
-      .part2_real_data_file    = "data/day1/real_data.txt",
-      .part2_func              = day1_part2},
+    { .day_button_title       = "Day 1",
+      .title_file             = "data/day1/title.txt",
+      .part1_description_file = "data/day1/part1_description.txt",
+      .part1_test_data_file   = "data/day1/test_data.txt",
+      .part1_real_data_file   = "data/day1/real_data.txt",
+      .part1_func             = day1_part1,
+      .part2_description_file = "data/day1/part2_description.txt",
+      .part2_test_data_file   = "data/day1/test_data.txt",
+      .part2_real_data_file   = "data/day1/real_data.txt",
+      .part2_func             = day1_part2},
 
-    { .day_button_title  = "Day 2",
-      .title_file        = "data/day2/title.txt",
-      .part1_description_file  = "data/day2/part1_description.txt",
-      .part1_test_data_file = "data/day2/test_data.txt",
-      .part1_real_data_file    = "data/day2/real_data.txt",
-      .part1_func              = day2_part1,
-      .part2_description_file  = "data/day2/part2_description.txt",
-      .part2_test_data_file = "data/day2/test_data.txt",
-      .part2_real_data_file    = "data/day2/real_data.txt",
-      .part2_func              = day2_part2}
+    { .day_button_title       = "Day 2",
+      .title_file             = "data/day2/title.txt",
+      .part1_description_file = "data/day2/part1_description.txt",
+      .part1_test_data_file   = "data/day2/test_data.txt",
+      .part1_real_data_file   = "data/day2/real_data.txt",
+      .part1_func             = day2_part1,
+      .part2_description_file = "data/day2/part2_description.txt",
+      .part2_test_data_file   = "data/day2/test_data.txt",
+      .part2_real_data_file   = "data/day2/real_data.txt",
+      .part2_func             = day2_part2}
 };
 
 
@@ -97,6 +97,7 @@ handle_day_button_interaction(Clay_ElementId   element_id,
     if (pointer_info.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
         if (index <= ARRAY_LENGTH(days)) {
             active_day_index = index;
+            active_problem_part = 1;
         }
     }
 }
