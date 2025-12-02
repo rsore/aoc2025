@@ -7,35 +7,45 @@
 
 #include <stdio.h>
 
-typedef char *(*DayFunc)(const char*, usize);
+typedef char *(*ProblemFunc)(const char*, usize);
 
 struct {
     const char *day_button_title;
+
     const char *title_file;
     Clay_String title;
-    const char *description_file;
-    Clay_String description;
-    const char *example_data_file;
-    Clay_String example_data;
-    const char *real_data_file;
-    Clay_String real_data;
-    DayFunc func;
 
-    char *test_result;
-    char *real_result;
+    ProblemFunc  part1_func;
+    const char  *part1_description_file;
+    Clay_String  part1_description;
+    const char  *part1_test_data_file;
+    Clay_String  part1_test_data;
+    const char  *part1_real_data_file;
+    Clay_String  part1_real_data;
+    char        *part1_test_result;
+    char        *part1_real_result;
+
+    ProblemFunc  part2_func;
+    const char  *part2_description_file;
+    Clay_String  part2_description;
+    const char  *part2_test_data_file;
+    Clay_String  part2_test_data;
+    const char  *part2_real_data_file;
+    Clay_String  part2_real_data;
+    char        *part2_test_result;
+    char        *part2_real_result;
+
 } days[] = {
-    { .day_button_title  = "Day 1 - Part 1",
-      .title_file        = "data/day1/part1_title.txt",
-      .description_file  = "data/day1/part1_description.txt",
-      .example_data_file = "data/day1/example_data.txt",
-      .real_data_file    = "data/day1/real_data.txt",
-      .func              = day1_part1 },
-    { .day_button_title  = "Day 1 - Part 2",
-      .title_file        = "data/day1/part2_title.txt",
-      .description_file  = "data/day1/part2_description.txt",
-      .example_data_file = "data/day1/example_data.txt",
-      .real_data_file    = "data/day1/real_data.txt",
-      .func              = day1_part2 },
+    { .day_button_title  = "Day 1",
+      .title_file        = "data/day1/title.txt",
+      .part1_description_file  = "data/day1/part1_description.txt",
+      .part1_test_data_file = "data/day1/test_data.txt",
+      .part1_real_data_file    = "data/day1/real_data.txt",
+      .part1_func              = day1_part1,
+      .part2_description_file  = "data/day1/part2_description.txt",
+      .part2_test_data_file = "data/day1/test_data.txt",
+      .part2_real_data_file    = "data/day1/real_data.txt",
+      .part2_func              = day1_part2}
 };
 
 
@@ -63,7 +73,8 @@ Texture2D aoc_icon;
 
 Clay_TextElementConfig headerTextConfig = {.fontId = 1, .letterSpacing = 5, .fontSize = 16, .textColor = {0,0,0,255}};
 
-static usize active_day_index = 0;
+static usize active_day_index    = 0;
+static u32   active_problem_part = 1;
 
 static void
 handle_day_button_interaction(Clay_ElementId   element_id,
@@ -80,6 +91,19 @@ handle_day_button_interaction(Clay_ElementId   element_id,
 }
 
 static void
+handle_part_button_interaction(Clay_ElementId   element_id,
+                               Clay_PointerData pointer_info,
+                               intptr_t         user_data)
+{
+    UNUSED(element_id);
+    u32 part = (u32)user_data;
+    if (pointer_info.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
+        if (part == 1) active_problem_part = 1;
+        else           active_problem_part = 2;
+    }
+}
+
+static void
 handle_run_button_interaction(Clay_ElementId   element_id,
                               Clay_PointerData pointer_info,
                               intptr_t         user_data)
@@ -88,11 +112,21 @@ handle_run_button_interaction(Clay_ElementId   element_id,
     bool test = (bool)user_data;
     if (pointer_info.state == CLAY_POINTER_DATA_PRESSED_THIS_FRAME) {
         if (test) {
-            free(days[active_day_index].test_result);
-            days[active_day_index].test_result = days[active_day_index].func(days[active_day_index].example_data.chars, days[active_day_index].example_data.length);
+            if (active_problem_part == 1) {
+                free(days[active_day_index].part1_test_result);
+                days[active_day_index].part1_test_result = days[active_day_index].part1_func(days[active_day_index].part1_test_data.chars, days[active_day_index].part1_test_data.length);
+            } else {
+                free(days[active_day_index].part2_test_result);
+                days[active_day_index].part2_test_result = days[active_day_index].part2_func(days[active_day_index].part2_test_data.chars, days[active_day_index].part2_test_data.length);
+            }
         } else {
-            free(days[active_day_index].real_result);
-            days[active_day_index].real_result = days[active_day_index].func(days[active_day_index].real_data.chars, days[active_day_index].real_data.length);
+            if (active_problem_part == 1) {
+                free(days[active_day_index].part1_real_result);
+                days[active_day_index].part1_real_result = days[active_day_index].part1_func(days[active_day_index].part1_real_data.chars, days[active_day_index].part1_real_data.length);
+            } else {
+                free(days[active_day_index].part2_real_result);
+                days[active_day_index].part2_real_result = days[active_day_index].part2_func(days[active_day_index].part2_real_data.chars, days[active_day_index].part2_real_data.length);
+            }
         }
     }
 }
@@ -164,6 +198,44 @@ CreateLayout(void)
                   .clip = {.vertical = true,
                            .childOffset = Clay_GetScrollOffset()}})
             {
+                CLAY({.id = CLAY_ID("PartSelector"),
+                      .layout = {.layoutDirection = CLAY_LEFT_TO_RIGHT,
+                                 .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_FIT()},
+                                 .padding = {25, 25, 0, 0},
+                                 .childGap = 25}})
+                {
+                    CLAY({.id = CLAY_ID("Part1Button"),
+                          .layout = {.padding = {0, 0, 20, 20},
+                                     .sizing = {.width = CLAY_SIZING_GROW()},
+                                     .childAlignment = {.x = CLAY_ALIGN_X_CENTER}},
+                          .backgroundColor = Clay_Hovered() ? SECONDARY_ACCENT_COLOR
+                                                            : ((active_problem_part == 1) ? PRIMARY_ACCENT_COLOR
+                                                                                          : SURFACE_HIGHLIGHT_COLOR)})
+                    {
+                        Clay_OnHover(handle_part_button_interaction, 1);
+                        CLAY_TEXT(CLAY_STRING("Part 1"), CLAY_TEXT_CONFIG({.fontSize = 24,
+                                                                           .textColor =  Clay_Hovered() ? ACCENT_TEXT_COLOR :
+                                                                                                        ((active_problem_part == 1) ? ACCENT_TEXT_COLOR
+                                                                                                                                    : PRIMARY_TEXT_COLOR),
+                                                                           .textAlignment = CLAY_TEXT_ALIGN_CENTER}));
+                    }
+                    CLAY({.id = CLAY_ID("Part2Button"),
+                          .layout = {.padding = {0, 0, 20, 20},
+                                     .sizing = {.width = CLAY_SIZING_GROW()},
+                                     .childAlignment = {.x = CLAY_ALIGN_X_CENTER}},
+                          .backgroundColor = Clay_Hovered() ? SECONDARY_ACCENT_COLOR
+                                                            : ((active_problem_part == 2) ? PRIMARY_ACCENT_COLOR
+                                                                                          : SURFACE_HIGHLIGHT_COLOR)})
+                    {
+                        Clay_OnHover(handle_part_button_interaction, 2);
+                        CLAY_TEXT(CLAY_STRING("Part 2"), CLAY_TEXT_CONFIG({.fontSize = 24,
+                                                                           .textColor =  Clay_Hovered() ? ACCENT_TEXT_COLOR
+                                                                                                        : ((active_problem_part == 1) ? ACCENT_TEXT_COLOR
+                                                                                                                                      : PRIMARY_TEXT_COLOR),
+                                                                           .textAlignment = CLAY_TEXT_ALIGN_CENTER}));
+                    }
+                }
+
                 CLAY({.id = CLAY_ID("DayOuter"),
                       .layout = {.layoutDirection = CLAY_TOP_TO_BOTTOM,
                                  .sizing = {.height = CLAY_SIZING_GROW(), .width = CLAY_SIZING_FIXED(1000)},
@@ -178,9 +250,10 @@ CreateLayout(void)
                           .layout = {.layoutDirection = CLAY_TOP_TO_BOTTOM,
                                      .sizing = {.height = CLAY_SIZING_GROW()}}})
                     {
-                        CLAY_TEXT(days[i].description, CLAY_TEXT_CONFIG({.fontSize = 24,
-                                                                         .textColor = SECONDARY_TEXT_COLOR,
-                                                                         .textAlignment = CLAY_TEXT_ALIGN_LEFT}));
+                        Clay_String desc = (active_problem_part == 1) ? days[i].part1_description : days[i].part2_description;
+                        CLAY_TEXT(desc, CLAY_TEXT_CONFIG({.fontSize = 24,
+                                                          .textColor = SECONDARY_TEXT_COLOR,
+                                                          .textAlignment = CLAY_TEXT_ALIGN_LEFT}));
                     }
                     CLAY({.id = CLAY_ID("RunSection"),
                           .layout = {.layoutDirection = CLAY_LEFT_TO_RIGHT,
@@ -205,9 +278,15 @@ CreateLayout(void)
                                   .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW(200)}},
                                   .backgroundColor = SURFACE_HIGHLIGHT_COLOR})
                             {
-                                if (days[i].test_result) {
-                                    Clay_String result = {.chars =  days[i].test_result,
-                                                          .length = (s32)strlen(days[i].test_result)};
+                                char *result_cstr = NULL;
+                                if (active_problem_part == 1) {
+                                    result_cstr = days[i].part1_test_result;
+                                } else {
+                                    result_cstr = days[i].part2_test_result;
+                                }
+                                if (result_cstr) {
+                                    Clay_String result = {.chars = result_cstr,
+                                                          .length = (s32)strlen(result_cstr)};
                                     CLAY_TEXT(result, CLAY_TEXT_CONFIG({.fontSize = 24,
                                                                         .textColor = PRIMARY_TEXT_COLOR,
                                                                         .textAlignment = CLAY_TEXT_ALIGN_CENTER}));
@@ -232,9 +311,15 @@ CreateLayout(void)
                                              .sizing = {.width = CLAY_SIZING_GROW(), .height = CLAY_SIZING_GROW(200)}},
                                   .backgroundColor = SURFACE_HIGHLIGHT_COLOR})
                             {
-                                if (days[i].real_result) {
-                                    Clay_String result = {.chars = days[i].real_result,
-                                                          .length = (s32)strlen(days[i].real_result)};
+                                char *result_cstr = NULL;
+                                if (active_problem_part == 1) {
+                                    result_cstr = days[i].part1_real_result;
+                                } else {
+                                    result_cstr = days[i].part2_real_result;
+                                }
+                                if (result_cstr) {
+                                    Clay_String result = {.chars = result_cstr,
+                                                          .length = (s32)strlen(result_cstr)};
                                     CLAY_TEXT(result, CLAY_TEXT_CONFIG({.fontSize = 24,
                                                                         .textColor = PRIMARY_TEXT_COLOR,
                                                                         .textAlignment = CLAY_TEXT_ALIGN_CENTER}));
@@ -346,14 +431,20 @@ int
 aoc2025_entry(void)
 {
     for (usize i = 0; i < ARRAY_LENGTH(days); ++i) {
-        char *title = read_entire_file(days[i].title_file);
-        days[i].title = (Clay_String){.chars = title, .length = (s32)strlen(title)};
-        char *description = read_entire_file(days[i].description_file);
-        days[i].description = (Clay_String){.chars = description, .length = (s32)strlen(description)};
-        char *example_data = read_entire_file(days[i].example_data_file);
-        days[i].example_data = (Clay_String){.chars = example_data, .length = (s32)strlen(example_data)};
-        char *real_data = read_entire_file(days[i].real_data_file);
-        days[i].real_data = (Clay_String){.chars = real_data, .length = (s32)strlen(real_data)};
+        char *title               = read_entire_file(days[i].title_file);
+        days[i].title             = (Clay_String){.chars = title, .length = (s32)strlen(title)};
+        char *part1_description   = read_entire_file(days[i].part1_description_file);
+        days[i].part1_description = (Clay_String){.chars = part1_description, .length = (s32)strlen(part1_description)};
+        char *part1_test_data     = read_entire_file(days[i].part1_test_data_file);
+        days[i].part1_test_data   = (Clay_String){.chars = part1_test_data, .length = (s32)strlen(part1_test_data)};
+        char *part1_real_data     = read_entire_file(days[i].part1_real_data_file);
+        days[i].part1_real_data   = (Clay_String){.chars = part1_real_data, .length = (s32)strlen(part1_real_data)};
+        char *part2_description   = read_entire_file(days[i].part2_description_file);
+        days[i].part2_description = (Clay_String){.chars = part2_description, .length = (s32)strlen(part2_description)};
+        char *part2_test_data     = read_entire_file(days[i].part2_test_data_file);
+        days[i].part2_test_data   = (Clay_String){.chars = part2_test_data, .length = (s32)strlen(part2_test_data)};
+        char *part2_real_data     = read_entire_file(days[i].part2_real_data_file);
+        days[i].part2_real_data   = (Clay_String){.chars = part2_real_data, .length = (s32)strlen(part2_real_data)};
     }
 
 
@@ -391,11 +482,17 @@ aoc2025_entry(void)
 
     for (usize i = 0; i < ARRAY_LENGTH(days); ++i) {
         free((char *)days[i].title.chars);
-        free((char *)days[i].description.chars);
-        free((char *)days[i].example_data.chars);
-        free((char *)days[i].real_data.chars);
-        free(days[i].test_result);
-        free(days[i].real_result);
+        free((char *)days[i].part1_description.chars);
+        free((char *)days[i].part1_test_data.chars);
+        free((char *)days[i].part1_real_data.chars);
+        free(days[i].part1_test_result);
+        free(days[i].part1_real_result);
+        free((char *)days[i].part2_description.chars);
+        free((char *)days[i].part2_test_data.chars);
+        free((char *)days[i].part2_real_data.chars);
+        free(days[i].part2_test_result);
+        free(days[i].part2_real_result);
+
     }
 
     return 0;
