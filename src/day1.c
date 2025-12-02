@@ -45,16 +45,25 @@ day1_part2(const char *input, usize input_length)
         this_line = sv_trim(this_line);
 
         StringView dir_sv = sv_take_and_consume(&this_line, 1);
-        s32 dir = sv_eq(dir_sv, SV_LIT("R")) ? 1 : -1;
+        s32        dir    = sv_eq(dir_sv, SV_LIT("R")) ? 1 : -1;
         s64 scalar;
         sv_to_int64(this_line, &scalar);
 
-        dial += (dir * scalar);
-        while (dial >= 100 || dial < 0) {
-            if (dial >= 100) dial -= 100;
-            else             dial += 100;
+        s64  value    = dir * scalar;
+        bool was_zero = dial == 0;
+        dial += value;
+
+        if (dial < 0 && !was_zero) {
             n_0 += 1;
         }
+
+        n_0 += absolute_value(dial) / 100;
+
+        if (dial == 0) {
+            n_0 += 1;
+        }
+
+        dial = ((dial % 100) + 100) % 100;
     }
 
     char *result = sprint("%u", n_0);
