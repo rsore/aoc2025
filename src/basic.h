@@ -41,4 +41,11 @@ max_s64(s64 a, s64 b)
     return b;
 }
 
+static inline s64
+max_s32(s32 a, s32 b)
+{
+    if (a > b) return a;
+    return b;
+}
+
 #endif
