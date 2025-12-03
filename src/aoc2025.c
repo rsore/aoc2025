@@ -390,7 +390,7 @@ update_draw_frame(Font* fonts)
 {
     Vector2 mouse_wheel_delta = GetMouseWheelMoveV();
     float   mouse_wheel_x     = mouse_wheel_delta.x;
-    float   mouse_wheel_y     = mouse_wheel_delta.y;
+    float   mouse_wheel_y     = mouse_wheel_delta.y * 5.0;
 
 #ifndef NDEBUG
     if (IsKeyPressed(KEY_D)) {
