@@ -56,7 +56,18 @@ struct {
       .part2_description_file = "data/day2/part2_description.txt",
       .part2_test_data_file   = "data/day2/test_data.txt",
       .part2_real_data_file   = "data/day2/real_data.txt",
-      .part2_func             = day2_part2}
+      .part2_func             = day2_part2},
+
+    { .day_button_title       = "Day 3",
+      .title_file             = "data/day3/title.txt",
+      .part1_description_file = "data/day3/part1_description.txt",
+      .part1_test_data_file   = "data/day3/test_data.txt",
+      .part1_real_data_file   = "data/day3/real_data.txt",
+      .part1_func             = day3_part1,
+      .part2_description_file = "data/day3/part2_description.txt",
+      .part2_test_data_file   = "data/day3/test_data.txt",
+      .part2_real_data_file   = "data/day3/real_data.txt",
+      .part2_func             = day3_part2},
 };
 
 
@@ -465,7 +476,7 @@ aoc2025_entry(void)
     Clay_Initialize(clay_memory,
                     (Clay_Dimensions){(f32)GetScreenWidth(), (f32)GetScreenHeight()},
                     (Clay_ErrorHandler){handle_clay_errors, 0});
-    Clay_Raylib_Initialize(1920, 1080, "Advent of Code 2025",
+    Clay_Raylib_Initialize(1400, 800, "Advent of Code 2025",
                            FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE | FLAG_MSAA_4X_HINT);
     aoc_icon = LoadTexture("data/aoc_icon.png");
     set_native_window_icon();

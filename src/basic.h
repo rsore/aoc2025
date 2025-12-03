@@ -34,4 +34,11 @@ absolute_value(s64 val)
     return val;
 }
 
+static inline s64
+max_s64(s64 a, s64 b)
+{
+    if (a > b) return a;
+    return b;
+}
+
 #endif
