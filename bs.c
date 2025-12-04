@@ -793,6 +793,8 @@ prepare_aoc2025(CompilationBlocks *blocks)
           .object = AOC2025_OBJECT_DIR"/day2"OBJ_FILE_EXT},
         { .source = SRC_DIR"/day3.c",
           .object = AOC2025_OBJECT_DIR"/day3"OBJ_FILE_EXT},
+        { .source = SRC_DIR"/day4.c",
+          .object = AOC2025_OBJECT_DIR"/day4"OBJ_FILE_EXT},
 #ifdef _MSC_VER
         { .source = SRC_DIR"/win32_aoc2025.c",
           .object = AOC2025_OBJECT_DIR"/win32_aoc2025"OBJ_FILE_EXT},

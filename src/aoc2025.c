@@ -68,6 +68,17 @@ struct {
       .part2_test_data_file   = "data/day3/test_data.txt",
       .part2_real_data_file   = "data/day3/real_data.txt",
       .part2_func             = day3_part2},
+
+    { .day_button_title       = "Day 4",
+      .title_file             = "data/day4/title.txt",
+      .part1_description_file = "data/day4/part1_description.txt",
+      .part1_test_data_file   = "data/day4/test_data.txt",
+      .part1_real_data_file   = "data/day4/real_data.txt",
+      .part1_func             = day4_part1,
+      .part2_description_file = "data/day4/part2_description.txt",
+      .part2_test_data_file   = "data/day4/test_data.txt",
+      .part2_real_data_file   = "data/day4/real_data.txt",
+      .part2_func             = day4_part2},
 };
 
 
