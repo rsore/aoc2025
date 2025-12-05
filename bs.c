@@ -747,6 +747,37 @@ prepare_clay(CompilationBlocks *blocks)
 }
 
 
+#define STB_DS_DIR "vendor/stb_ds/"
+#define STB_DS_OBJECT_DIR OBJECT_DIR"/stb_ds"
+
+static inline bool
+prepare_stb_ds(CompilationBlocks *blocks)
+{
+    if (!mkdir_if_not_exists(STB_DS_OBJECT_DIR)) return false;
+
+    CompilationBlock block = {0};
+
+    static Target stb_ds_targets[] = {
+        { .source = STB_DS_DIR"/stb_ds.c",
+          .object = STB_DS_OBJECT_DIR"/stb_ds"OBJ_FILE_EXT}
+    };
+    for (size_t i = 0; i < ARRAY_LENGTH(stb_ds_targets); ++i) {
+        da_append(&block.targets, stb_ds_targets[i]);
+    }
+
+    da_append(&block.include_directories, RAYLIB_SRC_DIR);
+    da_append(&block.definitions, "PLATFORM_DESKTOP_GLFW");
+    da_append(&block.include_directories, GLFW_INCLUDE_DIR);
+
+    ThirdPartyLicense license = {"stb_ds", STB_DS_DIR"/LICENSE"};
+    da_append(&third_party_licenses, license);
+
+    da_append(blocks, block);
+
+    return true;
+}
+
+
 #define SV_DIR "vendor/sv/"
 #define SV_OBJECT_DIR OBJECT_DIR"/sv"
 
@@ -795,6 +826,8 @@ prepare_aoc2025(CompilationBlocks *blocks)
           .object = AOC2025_OBJECT_DIR"/day3"OBJ_FILE_EXT},
         { .source = SRC_DIR"/day4.c",
           .object = AOC2025_OBJECT_DIR"/day4"OBJ_FILE_EXT},
+        { .source = SRC_DIR"/day5.c",
+          .object = AOC2025_OBJECT_DIR"/day5"OBJ_FILE_EXT},
 #ifdef _MSC_VER
         { .source = SRC_DIR"/win32_aoc2025.c",
           .object = AOC2025_OBJECT_DIR"/win32_aoc2025"OBJ_FILE_EXT},
@@ -815,6 +848,7 @@ prepare_aoc2025(CompilationBlocks *blocks)
 
     da_append(&block.include_directories, RAYLIB_SRC_DIR);
     da_append(&block.include_directories, CLAY_DIR);
+    da_append(&block.include_directories, STB_DS_DIR);
     da_append(&block.include_directories, SV_DIR);
     da_append(&block.include_directories, AOC2025_GENERATED_DIR);
 
@@ -1132,6 +1166,7 @@ generate_stuff(CompilationBlocks *blocks, Cmds *out_compile_commands)
     DO_OR_FAIL(prepare_aoc2025(blocks));
     DO_OR_FAIL(prepare_raylib(blocks));
     DO_OR_FAIL(prepare_glfw(blocks));
+    DO_OR_FAIL(prepare_stb_ds(blocks));
     DO_OR_FAIL(prepare_sv(blocks));
     DO_OR_FAIL(prepare_clay(blocks));
 
